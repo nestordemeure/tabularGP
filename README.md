@@ -21,9 +21,10 @@ TODO add usage example
 
 ## TODO
 
-- implement various kernels (deep learning encoder, classical kernels, all of those with various combinaisons methods)
-- implement regression models with one output
-- implement regression models with several outputs
-- implement classification models
+- insure [scalability](# https://github.com/cornellius-gp/gpytorch/tree/master/examples/02_Scalable_Exact_GPs)
+
+- implement various kernels (deep learning encoder, classical kernels, all of those with various combinaisons methods) to encode the inputs
+
+- implement various kernel and likelyhoods to deal with different problems (regression single output, regression multiouput, classification)
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*
