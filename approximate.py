@@ -74,8 +74,8 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
     def forward(self, inputs:Tensor):
         # gets the input back into a usable form
         # TODO we could encapsulate that into a dedicated function
-        x_cat = inputs[:, self.nb_continuous_inputs:]
-        x_cont = inputs[:, :self.nb_continuous_inputs]
+        x_cat = inputs[:, :-self.nb_continuous_inputs]
+        x_cont = inputs[:, -self.nb_continuous_inputs:]
         # converts x_cat to indexes between 0 and their maximum allowed value
         x_cat = torch.min(x_cat.long().clamp(min=0), self.category_sizes.unsqueeze(0)-1)
         # computes covariances
@@ -85,6 +85,13 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         covar_x = cov(x_cat[:,i])
         for i,cov in cat_covars: covar_x += cov(x_cat[:,i])
         for i,cov in enumerate(self.cont_covars): covar_x += cov(x_cont[:,i])
+        
+        # TODO the cont kernel works but the index kernel fails, why ?
+        #cont_covars = enumerate(self.cont_covars)
+        #i,cov = next(cont_covars)
+        #covar_x = cov(x_cont[:,i])
+        #for i,cov in cont_covars: covar_x += cov(x_cont[:,i])
+ 
         # computes mean
         mean_x = self.mean_module(inputs)
         # returns a distribution
@@ -100,6 +107,8 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         # use an inputs format that is compatible with the variational strategy implementation (single float tensor)
         inputs = torch.cat((x_cat.float(), x_cont), dim=1)
         return self.variational_strategy(inputs)
+
+#gpytorch.lazy.lazy_evaluated_kernel_tensor.diag
 
 #tabular_learner
 def tabularGP_learner(data:DataBunch, nb_inducing_points = 500, embedding_sizes:Dict[str,int]=None, metrics=None, **learn_kwargs):
