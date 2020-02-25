@@ -41,7 +41,7 @@ class TabularGPModel(gpytorch.models.ExactGP):
         self.mean_module = gpytorch.means.ConstantMean()
         if output_size > 1: self.mean_module = gpytorch.means.MultitaskMean(self.mean_module, num_tasks=output_size)
         # defines covariance kernels
-        self.cat_covars = nn.ModuleList([ScaleKernel(IndexKernel(nb_cat, embeding_size)) for nb_cat,embeding_size in embedding_sizes])
+        self.cat_covars = nn.ModuleList([IndexKernel(nb_cat, embeding_size) for nb_cat,embeding_size in embedding_sizes])
         self.cont_covars = nn.ModuleList([ScaleKernel(RBFKernel()) for _ in range(nb_continuous_inputs)])
         # taken from MultitaskKernel
         #self.multicov = MultitaskKernel(gpytorch.kernels.RBFKernel(), num_tasks=output_size)

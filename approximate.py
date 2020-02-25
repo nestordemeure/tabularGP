@@ -38,7 +38,7 @@ def _defines_inducing_points(data:DataBunch, nb_inducing_points:int):
     # concat the batches
     dataset = torch.cat(dataset)
     # selects inducing points
-    # TODO use kmean clustering
+    # TODO use kmean clustering to find representative inducing points
     dataset = dataset[:nb_inducing_points, :]
     return dataset
 
@@ -48,7 +48,7 @@ def _defines_inducing_points(data:DataBunch, nb_inducing_points:int):
 #TabularModel
 class TabularGPModel(gpytorch.models.ApproximateGP):
     "Gaussian process based model for tabular data."
-    def __init__(self, nb_continuous_inputs:int, embedding_sizes:ListSizes, output_size:int, inducing_points, likelihood):
+    def __init__(self, nb_continuous_inputs:int, embedding_sizes:ListSizes, output_size:int, inducing_points, likelihood, base_noise=1e-2):
         # defines variational strategy
         variational_distribution = gpytorch.variational.CholeskyVariationalDistribution(inducing_points.size(0))
         variational_strategy = gpytorch.variational.VariationalStrategy(self, inducing_points, variational_distribution, learn_inducing_locations=True)
@@ -64,8 +64,9 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         self.mean_module = gpytorch.means.ConstantMean()
         if output_size > 1: self.mean_module = gpytorch.means.MultitaskMean(self.mean_module, num_tasks=output_size)
         # defines covariance kernels
-        self.cat_covars = nn.ModuleList([ScaleKernel(IndexKernel(nb_cat, embeding_size)) for nb_cat,embeding_size in embedding_sizes])
+        self.cat_covars = nn.ModuleList([IndexKernel(num_tasks=nb_cat, rank=embedding_size) for nb_cat,embedding_size in embedding_sizes])
         self.cont_covars = nn.ModuleList([ScaleKernel(RBFKernel()) for _ in range(nb_continuous_inputs)])
+        self.raw_noise = nn.Parameter(torch.tensor([log(base_noise)])) # use log to insure positivity
         # taken from MultitaskKernel
         if output_size > 1:
             self.task_covar_module = IndexKernel(num_tasks=output_size)
@@ -77,7 +78,7 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         x_cat = inputs[:, :-self.nb_continuous_inputs]
         x_cont = inputs[:, -self.nb_continuous_inputs:]
         # converts x_cat to indexes between 0 and their maximum allowed value
-        x_cat = torch.min(x_cat.long().clamp(min=0), self.category_sizes.unsqueeze(0)-1)
+        x_cat = torch.min(x_cat.long().clamp_min(0), self.category_sizes.unsqueeze(0)-1)
         # computes covariances
         # TODO use better kernel
         cat_covars = enumerate(self.cat_covars)
@@ -85,15 +86,21 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         covar_x = cov(x_cat[:,i])
         for i,cov in cat_covars: covar_x += cov(x_cat[:,i])
         for i,cov in enumerate(self.cont_covars): covar_x += cov(x_cont[:,i])
-        
-        # TODO the cont kernel works but the index kernel fails, why ?
-        #cont_covars = enumerate(self.cont_covars)
-        #i,cov = next(cont_covars)
-        #covar_x = cov(x_cont[:,i])
-        #for i,cov in cont_covars: covar_x += cov(x_cont[:,i])
- 
+
+        # adds some fixed noise to avoid numerical unstability when computing cholesky decomposition
+        # while computing cholesky decomposition to build the MultivariateNormal
+        fixed_noise = torch.exp(self.raw_noise).clamp_min(1e-2)*torch.eye(covar_x.size(0)).to(covar_x.device)
+        covar_x += fixed_noise
+
+        # evaluate the kernel to avoid a bug
+        # while computing diagonal of lazy tensor
+        # when the kernel contains a sum of IndexKernels
+        # TODO reproduce sum of IndexKernel bug without fastai and forward it to gpytorch authors
+        covar_x = covar_x.evaluate()
+
         # computes mean
         mean_x = self.mean_module(inputs)
+
         # returns a distribution
         if self.output_size == 1:
             return MultivariateNormal(mean_x, covar_x)
@@ -107,8 +114,6 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         # use an inputs format that is compatible with the variational strategy implementation (single float tensor)
         inputs = torch.cat((x_cat.float(), x_cont), dim=1)
         return self.variational_strategy(inputs)
-
-#gpytorch.lazy.lazy_evaluated_kernel_tensor.diag
 
 #tabular_learner
 def tabularGP_learner(data:DataBunch, nb_inducing_points = 500, embedding_sizes:Dict[str,int]=None, metrics=None, **learn_kwargs):
@@ -140,13 +145,13 @@ df = pd.read_csv(path/'adult.csv').sample(1000)
 
 # problem definition
 cat_names = ['workclass', 'education', 'marital-status', 'occupation', 'relationship', 'race']
-cont_names = ['fnlwgt', 'education-num']
+cont_names = ['education-num']
 procs = [FillMissing, Normalize, Categorify]
 
 # load data
 dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_names, procs=procs)
                   .split_by_rand_pct()
-                  .label_from_df(cols='age', label_cls=FloatList)
+                  .label_from_df(cols=['age','fnlwgt'], label_cls=FloatList)
                   .databunch())
 
 # classical model
