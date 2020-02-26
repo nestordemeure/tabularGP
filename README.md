@@ -21,10 +21,8 @@ TODO add usage example
 
 ## TODO
 
-- currently the GP does not scale to large dataset (cuda OOM) (approximate GP seem to be the proper solution)
-- neither marginal log likelyhood nor exact GP are compatible with sofmaxlikelyhood (one hot encoding the targets results in singular matrix error)
+- i got approximate gp working but it would be nice to get exact gp to scale
+- the code uses a numbers of hacks to run without numerical problem / gpytorch bugs, we might be able to improve on that
 - i need proper kernels for the input instead of the current placeholder
-
-the best way might be to go for an approximate gp as they seem to solve both problems
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*
