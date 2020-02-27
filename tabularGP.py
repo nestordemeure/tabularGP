@@ -43,11 +43,6 @@ def _defines_inducing_points(data:DataBunch, nb_inducing_points:int):
     return dataset
 
 def safe_MultivariateNormal(mean_x, covar_x):
-    # adds some fixed noise to avoid numerical unstability when computing cholesky decomposition
-    # while computing cholesky decomposition to build the MultivariateNormal
-    #fixed_noise = torch.exp(self.raw_noise).clamp_min(1e-2)*torch.eye(covar_x.size(-1)).to(covar_x.device)
-    #covar_x += fixed_noise
-
     # evaluate the kernel to avoid a bug
     # while computing diagonal of lazy tensor
     # when the kernel contains a sum of IndexKernels
@@ -82,7 +77,7 @@ def safe_MultivariateNormal(mean_x, covar_x):
 
 class TabularGPModel(gpytorch.models.ApproximateGP):
     "Gaussian process based model for tabular data."
-    def __init__(self, nb_continuous_inputs:int, embedding_sizes:ListSizes, output_size:int, inducing_points, likelihood, base_noise=1e-2):
+    def __init__(self, nb_continuous_inputs:int, embedding_sizes:ListSizes, output_size:int, inducing_points, likelihood):
         # repeats for multi output case
         nb_inducing_points = inducing_points.size(-2)
         if output_size > 1:
@@ -104,28 +99,22 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         #if output_size > 1: self.mean_module = gpytorch.means.MultitaskMean(self.mean_module, num_tasks=output_size)
         # defines covariance kernels
         self.cat_covars = nn.ModuleList([IndexKernel(num_tasks=nb_cat, rank=embedding_size, batch_shape=batch_shape) for nb_cat,embedding_size in embedding_sizes])
-        self.cont_covars = nn.ModuleList([ScaleKernel(RBFKernel(batch_shape=batch_shape), batch_shape=batch_shape) for _ in range(nb_continuous_inputs)])
-        self.raw_noise = nn.Parameter(torch.tensor([log(base_noise)])) # use log to insure positivity
+        #self.cont_covars = nn.ModuleList([ScaleKernel(RBFKernel(batch_shape=batch_shape), batch_shape=batch_shape) for _ in range(nb_continuous_inputs)])
+        self.cont_covar = AdditiveStructureKernel(ScaleKernel(RBFKernel(batch_shape=batch_shape), batch_shape=batch_shape), num_dims=nb_continuous_inputs)
 
     #def forward(self, x_cat:Tensor, x_cont:Tensor):
     def forward(self, inputs:Tensor):
-        # gets the input back into a usable form
-        # TODO we could encapsulate that into a dedicated function
-        x_cat = inputs[..., :-self.nb_continuous_inputs]
+        # gets the input back into a category/continuous form
+        x_cat = inputs[..., :-self.nb_continuous_inputs].long()
         x_cont = inputs[..., -self.nb_continuous_inputs:]
-        # converts x_cat to indexes between 0 and their maximum allowed value
-        x_cat = torch.min(x_cat.long().clamp_min(0), self.category_sizes-1)
+        # insures that x_cat is between 0 and the maximum allowed value
+        #x_cat = torch.min(x_cat.clamp_min(0), self.category_sizes-1)
         # computes covariances
         # TODO use better kernel
-        cat_covars = enumerate(self.cat_covars)
-        i,cov = next(cat_covars)
-        covar_x = cov(x_cat[...,i].t()) # transpose are needed to insure that batch dim comes first
-        for i,cov in cat_covars: covar_x += cov(x_cat[...,i].t())
-        for i,cov in enumerate(self.cont_covars): covar_x += cov(x_cont[...,i].t())
-
+        covar_x = self.cont_covar(x_cont)
+        for i,cov in enumerate(self.cat_covars): covar_x += cov(x_cat[...,i].t())
         # computes mean
         mean_x = self.mean_module(inputs)
-
         # returns a distribution
         return safe_MultivariateNormal(mean_x, covar_x)
 
@@ -170,15 +159,15 @@ procs = [FillMissing, Normalize, Categorify]
 dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_names, procs=procs)
                   .split_by_rand_pct()
                   .label_from_df(cols='age', label_cls=FloatList)
-                  .databunch())
+                  .databunch(bs=64))
 
 # classical model
 #learn = tabular_learner(dls, layers=[200,100], metrics=[rmse, mae])
 #learn.fit(10, 1e-2)
 
 # gp model
-glearn = tabularGP_learner(dls, metrics=[rmse, mae])
-glearn.fit(10, 0.1)
+glearn = tabularGP_learner(dls, metrics=[rmse, mae], nb_inducing_points=500)
+glearn.fit(10, 1e-2)
 
 #------------------------------------------------------------------------------
 # Multiple regression
