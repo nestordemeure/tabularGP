@@ -42,19 +42,55 @@ def _defines_inducing_points(data:DataBunch, nb_inducing_points:int):
     dataset = dataset[:nb_inducing_points, :]
     return dataset
 
+def safe_MultivariateNormal(mean_x, covar_x):
+    # adds some fixed noise to avoid numerical unstability when computing cholesky decomposition
+    # while computing cholesky decomposition to build the MultivariateNormal
+    #fixed_noise = torch.exp(self.raw_noise).clamp_min(1e-2)*torch.eye(covar_x.size(-1)).to(covar_x.device)
+    #covar_x += fixed_noise
+
+    # evaluate the kernel to avoid a bug
+    # while computing diagonal of lazy tensor
+    # when the kernel contains a sum of IndexKernels
+    # TODO reproduce sum of IndexKernel bug without fastai and forward it to gpytorch authors
+    covar_x = covar_x.evaluate()
+
+    # inspired by psd_safe_cholesky
+    # https://github.com/cornellius-gp/gpytorch/blob/master/gpytorch/utils/cholesky.py
+    try:
+        # does the transformation works with no diagonal noise ?
+        multivariateNormal = MultivariateNormal(mean_x, covar_x)
+        return multivariateNormal
+    except RuntimeError as e:
+        # tries to succed with incremental level of noise
+        jitter = 1e-6 if mean_x.dtype == torch.float32 else 1e-8
+        jitter_prev = 0
+        for i in range(6):
+            jitter_new = jitter * (10 ** i)
+            covar_x.diagonal(dim1=-2, dim2=-1).add_(jitter_new - jitter_prev)
+            jitter_prev = jitter_new
+            try:
+                # doe sit work with this level of noise ?
+                multivariateNormal = MultivariateNormal(mean_x, covar_x)
+                warnings.warn(f"Covariance matrix not p.d., added jitter of {jitter_new} to the diagonal", RuntimeWarning)
+                return multivariateNormal
+            except RuntimeError: continue
+        # did not work even with large levels of noise, we give up
+        raise e
+
 #------------------------------------------------------------------------------
 # Model
 
-#TabularModel
 class TabularGPModel(gpytorch.models.ApproximateGP):
     "Gaussian process based model for tabular data."
     def __init__(self, nb_continuous_inputs:int, embedding_sizes:ListSizes, output_size:int, inducing_points, likelihood, base_noise=1e-2):
         # repeats for multi output case
-        # TODO all the batch parameters are here only for the multi output case!
         nb_inducing_points = inducing_points.size(-2)
-        inducing_points = inducing_points.unsqueeze(dim=0).repeat(output_size,1,1) # TODO expand might reduce memory usage but how does it impact precision ?
+        if output_size > 1:
+            # TODO expand might reduce memory usage but how does it impact precision ?
+            inducing_points = inducing_points.unsqueeze(dim=0).repeat(output_size,1,1)
         # defines variational strategy
-        variational_distribution = gpytorch.variational.CholeskyVariationalDistribution(nb_inducing_points, batch_shape=torch.Size([output_size]))
+        batch_shape = torch.Size() if output_size == 1 else torch.Size([output_size])
+        variational_distribution = gpytorch.variational.CholeskyVariationalDistribution(nb_inducing_points, batch_shape=batch_shape)
         variational_strategy = gpytorch.variational.VariationalStrategy(self, inducing_points, variational_distribution, learn_inducing_locations=True)
         if output_size > 1: variational_strategy = gpytorch.variational.MultitaskVariationalStrategy(variational_strategy, num_tasks=output_size)
         # stores base members
@@ -64,11 +100,11 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         self.nb_continuous_inputs = nb_continuous_inputs
         self.register_buffer("category_sizes", torch.LongTensor([nb_cat for nb_cat,embeding_size in embedding_sizes]))
         # defines mean
-        self.mean_module = gpytorch.means.ConstantMean(batch_shape=torch.Size([output_size]))
+        self.mean_module = gpytorch.means.ConstantMean(batch_shape=batch_shape)
         #if output_size > 1: self.mean_module = gpytorch.means.MultitaskMean(self.mean_module, num_tasks=output_size)
         # defines covariance kernels
-        self.cat_covars = nn.ModuleList([IndexKernel(num_tasks=nb_cat, rank=embedding_size, batch_shape=torch.Size([output_size])) for nb_cat,embedding_size in embedding_sizes])
-        self.cont_covars = nn.ModuleList([ScaleKernel(RBFKernel(batch_shape=torch.Size([output_size])), batch_shape=torch.Size([output_size])) for _ in range(nb_continuous_inputs)])
+        self.cat_covars = nn.ModuleList([IndexKernel(num_tasks=nb_cat, rank=embedding_size, batch_shape=batch_shape) for nb_cat,embedding_size in embedding_sizes])
+        self.cont_covars = nn.ModuleList([ScaleKernel(RBFKernel(batch_shape=batch_shape), batch_shape=batch_shape) for _ in range(nb_continuous_inputs)])
         self.raw_noise = nn.Parameter(torch.tensor([log(base_noise)])) # use log to insure positivity
 
     #def forward(self, x_cat:Tensor, x_cont:Tensor):
@@ -87,29 +123,17 @@ class TabularGPModel(gpytorch.models.ApproximateGP):
         for i,cov in cat_covars: covar_x += cov(x_cat[...,i].t())
         for i,cov in enumerate(self.cont_covars): covar_x += cov(x_cont[...,i].t())
 
-        # adds some fixed noise to avoid numerical unstability when computing cholesky decomposition
-        # while computing cholesky decomposition to build the MultivariateNormal
-        fixed_noise = torch.exp(self.raw_noise).clamp_min(1e-2)*torch.eye(covar_x.size(-1)).to(covar_x.device)
-        covar_x += fixed_noise
-
-        # evaluate the kernel to avoid a bug
-        # while computing diagonal of lazy tensor
-        # when the kernel contains a sum of IndexKernels
-        # TODO reproduce sum of IndexKernel bug without fastai and forward it to gpytorch authors
-        covar_x = covar_x.evaluate()
-
         # computes mean
         mean_x = self.mean_module(inputs)
 
         # returns a distribution
-        return MultivariateNormal(mean_x, covar_x)
+        return safe_MultivariateNormal(mean_x, covar_x)
 
     def __call__(self, x_cat:Tensor, x_cont:Tensor, **kwargs):
         # use an inputs format that is compatible with the variational strategy implementation (single float tensor)
         inputs = torch.cat((x_cat.float(), x_cont), dim=1)
         return self.variational_strategy(inputs)
 
-#tabular_learner
 def tabularGP_learner(data:DataBunch, nb_inducing_points = 500, embedding_sizes:Dict[str,int]=None, metrics=None, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the given data"
     # picks a likelihood for the task
@@ -153,8 +177,8 @@ dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_n
 #learn.fit(10, 1e-2)
 
 # gp model
-#glearn = tabularGP_learner(dls, metrics=[rmse, mae])
-#glearn.fit(10, 0.1)
+glearn = tabularGP_learner(dls, metrics=[rmse, mae])
+glearn.fit(10, 0.1)
 
 #------------------------------------------------------------------------------
 # Multiple regression

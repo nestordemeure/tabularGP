@@ -1,6 +1,6 @@
 # Tabular GP
 # Gaussian process based tabular model
-# source: https://github.com/nestordemeure/tabularGP/blob/master/tabularGP.py
+# source: https://github.com/nestordemeure/tabularGP/blob/master/tabularGPExact.py
 
 import gpytorch
 from gpytorch.kernels import *
@@ -9,7 +9,7 @@ from gpytorch.distributions import *
 from fastai.torch_core import *
 from fastai.tabular import *
 
-__all__ = ['TabularGPModel', 'tabularGP_learner']
+__all__ = ['ExactTabularGPModel', 'exactTabularGP_learner']
 
 #------------------------------------------------------------------------------
 # GP specific wrappers
@@ -31,8 +31,7 @@ def _gp_loss(likelihood, model):
 #------------------------------------------------------------------------------
 # Model
 
-#TabularModel
-class TabularGPModel(gpytorch.models.ExactGP):
+class ExactTabularGPModel(gpytorch.models.ExactGP):
     "Gaussian process based model for tabular data."
     def __init__(self, nb_continuous_inputs:int, embedding_sizes:ListSizes, output_size:int, train_x, train_y, likelihood):
         super().__init__(train_x, train_y, likelihood)
@@ -66,8 +65,7 @@ class TabularGPModel(gpytorch.models.ExactGP):
             covar_x = gpytorch.lazy.KroneckerProductLazyTensor(covar_x, covar_i)
             return MultitaskMultivariateNormal(mean_x, covar_x)
 
-#tabular_learner
-def tabularGP_learner(data:DataBunch, embedding_sizes:Dict[str,int]=None, metrics=None, **learn_kwargs):
+def exactTabularGP_learner(data:DataBunch, embedding_sizes:Dict[str,int]=None, metrics=None, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the given data"
     # insures training will be done on the full dataset and not smaller batches
     data.train_dl.batch_size = len(data.train_dl.dl.dataset)
@@ -77,12 +75,11 @@ def tabularGP_learner(data:DataBunch, embedding_sizes:Dict[str,int]=None, metric
     is_classification = hasattr(data, 'classes')
     is_multitask = data.c > 1
     if is_classification: raise Exception("You cannot use exactGP for classification tasks!")
-    #if is_classification: likelihood = SoftmaxLikelihood(num_classes=data.c, num_features=data.c)
     elif is_multitask: likelihood = MultitaskGaussianLikelihood(data.c)
     else: likelihood = GaussianLikelihood()
     # defines the model
     embedding_sizes = data.get_emb_szs(ifnone(embedding_sizes, {}))
-    model = TabularGPModel(nb_continuous_inputs=len(data.cont_names), embedding_sizes=embedding_sizes,
+    model = ExactTabularGPModel(nb_continuous_inputs=len(data.cont_names), embedding_sizes=embedding_sizes,
                            output_size=data.c, train_x=train_x, train_y=train_y, likelihood=likelihood)
     # finds optimal model hyper parameters
     model.train()
@@ -112,17 +109,25 @@ dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_n
 #learn.fit(10, 1e-2)
 
 # gp model
-glearn = tabularGP_learner(dls, metrics=[rmse, mae])
+glearn = exactTabularGP_learner(dls, metrics=[rmse, mae])
 glearn.fit(10, 0.1)
 
 #------------------------------------------------------------------------------
-# Classification
+# Multiple regression
 
-#dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_names, procs=procs)
-#                  .split_by_rand_pct()
-#                  .label_from_df(cols='salary')
-#                  .databunch())
+# dataset
+path = untar_data(URLs.ADULT_SAMPLE)
+df = pd.read_csv(path/'adult.csv').sample(1000)
+
+# problem definition
+cont_names = ['education-num']
+
+# load data
+dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_names, procs=procs)
+                  .split_by_rand_pct()
+                  .label_from_df(cols=['age','fnlwgt'], label_cls=FloatList)
+                  .databunch())
 
 # gp model
-#glearn = tabularGP_learner(dls, metrics=accuracy)
-#glearn.fit(10, 1e-2)
+glearn = exactTabularGP_learner(dls, metrics=[rmse, mae])
+glearn.fit(10, 0.1)
