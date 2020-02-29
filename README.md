@@ -6,13 +6,14 @@ If you are a gaussian process expert, you might be better served by [gpytorch](h
 
 **WARNING: this is a work in progress that is still very incomplete (see our TODO list).**
 
-## Capabilities
+## Features
 
 - regression on one or more targets
 - classification (TODO)
 - uncertainty on the outputs
 - feature importance estimation (TODO)
 - transfer-learning to recycle models (TODO)
+- neural network based kernel
 
 ## TODO
 
@@ -24,7 +25,6 @@ If you are a gaussian process expert, you might be better served by [gpytorch](h
 
 ### Kernel
 
-- make abstract classes for the various kinds of kernel
 - add matern kernel
 - add a date/time specific kernel
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
