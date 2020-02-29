@@ -13,11 +13,14 @@ If you are a gaussian process expert, you might be better served by [gpytorch](h
 - uncertainty on the outputs
 - feature importance estimation (TODO)
 - transfer-learning to recycle models (TODO)
-- neural network based kernel
+- various kernels including a neural-network based kernel
+- naturally resistant to overfitting
 
 ## Notes
 
 A learning rate of about `1e-1` seems like a good default.
+
+The loss can sometimes decrease while the error is slightly increasing, this is due to the model fighting overfitting and improving its calibration.
 
 Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial with this kind of model but it can also lead to numerically unstable situations.
 
@@ -27,7 +30,7 @@ Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial wi
 
 - add usage example to readme
 - add demo notebook
-- compare to baseline neural networks
+- compare to neural network baselines
 
 #### Kernel
 
