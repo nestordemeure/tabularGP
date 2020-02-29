@@ -1,6 +1,7 @@
 import torch
+from torch import nn
 
-__all__ = ['psd_safe_cholesky']
+__all__ = ['psd_safe_cholesky', 'Scale']
 
 def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
     """Compute the Cholesky decomposition of A. If A is only p.s.d, add a small jitter to the diagonal.
@@ -35,3 +36,13 @@ def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
             except RuntimeError:
                 continue
         raise e
+
+class Scale(nn.Module):
+    "scales the input with positive weights"
+    def __init__(self, nb_features:int):
+        super().__init__()
+        self.sqrt_scale = nn.Parameter(torch.ones(nb_features))
+
+    def forward(self, x):
+        scale = self.sqrt_scale * self.sqrt_scale
+        return scale * x

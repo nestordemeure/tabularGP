@@ -9,6 +9,7 @@ from torch import nn
 import torch
 # my imports
 from universalCombinator import PositiveMultiply, PositiveProductOfSum
+from utils import Scale
 
 __all__ = ['IndexKernelSingle', 'IndexKernel', 'HammingKernel', 'RBFKernel',
            'WeightedSumKernel', 'WeightedProductKernel', 'ProductOfSumsKernel', 'NeuralKernel']
@@ -77,13 +78,6 @@ class RBFKernel(nn.Module):
         covariance = torch.exp( -(x - y)**2 / (2 * self.bandwidth * self.bandwidth).unsqueeze(dim=0) )
         return covariance
 
-class CosineSimilarityKernel(nn.Module):
-    "performs a cosine similarity between all the columns at once"
-    def forward(self, x, y):
-        similarity = nn.functional.cosine_similarity(x, y, dim=-1) # in [-1,1]
-        covariance = 0.5 + 0.5*similarity
-        return covariance
-
 #--------------------------------------------------------------------------------------------------
 # tabular kernels
 
@@ -120,7 +114,7 @@ class WeightedSumKernel(TabularKernel):
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(train_cat, embedding_sizes)
         nb_features = train_cont.size(1) + train_cat.size(1)
-        self.sqrt_scale = nn.Parameter(torch.ones(nb_features))
+        self.scale = Scale(nb_features)
 
     def forward(self, x, y):
         "returns a tensor with one similarity per pair (x_i,y_i) of batch element"
@@ -128,9 +122,8 @@ class WeightedSumKernel(TabularKernel):
         x_cat, x_cont = x
         y_cat, y_cont = y
         covariances = torch.cat((self.cont_kernel(x_cont, y_cont), self.cat_kernel(x_cat, y_cat)), dim=-1)
-        # weihgted sum of the covariances
-        scale = (self.sqrt_scale * self.sqrt_scale).unsqueeze(dim=0)
-        covariance = torch.sum(scale * covariances, dim=-1)
+        # weighted sum of the covariances
+        covariance = torch.sum(self.scale(covariances), dim=-1)
         return covariance
 
 class WeightedProductKernel(TabularKernel):
@@ -172,13 +165,18 @@ class NeuralKernel(TabularKernel):
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, neural_embedding_size:int=20, layers=[200,100], **neuralnetwork_kwargs):
         super().__init__(train_cont, train_cat, embedding_sizes)
         self.encoder = TabularModel(emb_szs=embedding_sizes, n_cont=train_cont.size(-1), out_sz=neural_embedding_size, layers=layers, y_range=None, **neuralnetwork_kwargs)
-        self.kernel = CosineSimilarityKernel()
+        self.scale = Scale(neural_embedding_size)
+
+    def kernel(self, x, y):
+        "RBF type of kernel"
+        covariance = self.scale(torch.exp(-(x - y)**2)) # no bandwith as we found it detrimental here
+        return torch.sum(covariance, dim=-1)
 
     def forward(self, x, y):
         "returns a tensor with one similarity per pair (x_i,y_i) of batch element"
         x = self.encoder(*x)
         y = self.encoder(*y)
-        return self.kernel(x, y)
+        return self.kernel(x,y)
 
     def matrix(self, x, y):
         "Computes the matrix of all combinaison of kernel(x_i,y_j)"
@@ -191,5 +189,5 @@ class NeuralKernel(TabularKernel):
         element_size = x.size(1)
         x = x.unsqueeze(1).expand(nb_x_elements, nb_y_elements, element_size)
         y = y.unsqueeze(0).expand(nb_x_elements, nb_y_elements, element_size)
-        # covariance computation
-        return self.kernel(x, y)
+        return self.kernel(x,y)
+
