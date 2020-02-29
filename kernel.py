@@ -6,6 +6,8 @@ from fastai.tabular import ListSizes
 import numpy as np
 from torch import nn
 import torch
+# my imports
+from universalCombinator import PositiveProductOfSum
 
 __all__ = ['kernelMatrix', 'IndexKernelSingle', 'RBFKernel', 'HammingKernel', 'IndexKernel', 'WeightedSumKernel']
 
