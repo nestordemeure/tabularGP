@@ -39,38 +39,25 @@ class IndexKernel(nn.Module):
     default kernel on categories
     inspired by [gpytorch's IndexKernel](https://gpytorch.readthedocs.io/en/latest/kernels.html#indexkernel)
     """
-    def __init__(self, train_data, embedding_sizes:ListSizes, should_reduce=True, use_scaling=None):
-        "the 'use_scaling' parameter is ignored as this kernel requires scaling"
+    def __init__(self, train_data, embedding_sizes:ListSizes):
         super().__init__()
-        self.should_reduce = should_reduce
         self.cat_covs = nn.ModuleList([IndexKernelSingle(train_data[:,i],nb_category,rank) for i,(nb_category,rank) in enumerate(embedding_sizes)])
 
     def forward(self, x, y):
         covariances = [cov(x[...,i],y[...,i]) for i,cov in enumerate(self.cat_covs)]
-        # returns with or without summing accros columns
-        if self.should_reduce: return sum(covariances)
-        else: return torch.stack(covariances, dim=-1)
+        return torch.stack(covariances, dim=-1)
 
 class HammingKernel(nn.Module):
     "trivial kernel on categories"
-    def __init__(self, train_data, should_reduce=True, use_scaling=True):
+    def __init__(self, train_data):
         super().__init__()
-        self.should_reduce = should_reduce
         self.nb_training_points = train_data.size(1)
-        self.use_scaling = use_scaling
-        if use_scaling: self.sqrt_scale = nn.Parameter(torch.ones(train_data.size(1)))
 
     def forward(self, x, y):
         "1 where x=y, 0 otherwise"
         covariance = torch.zeros(x.shape).to(x.device)
         covariance[x == y] = 1.0
-        # scales the output if requested
-        if self.use_scaling:
-            scale = (self.sqrt_scale * self.sqrt_scale).unsqueeze(dim=0)
-            covariance = scale * covariance
-        # returns with or without summing accros columns
-        if self.should_reduce: return covariance.sum(dim=-1)
-        else: return covariance
+        return covariance
 
 #--------------------------------------------------------------------------------------------------
 # continuous kernels
@@ -81,23 +68,21 @@ def _default_bandwidth(x):
 
 class RBFKernel(nn.Module):
     "default, gaussian, kernel on reals"
-    def __init__(self, train_data, should_reduce=True, use_scaling=True):
+    def __init__(self, train_data):
         super().__init__()
-        self.should_reduce = should_reduce
         self.nb_training_points = train_data.size(1)
         self.bandwidth = nn.Parameter(_default_bandwidth(train_data))
-        self.use_scaling = use_scaling
-        if use_scaling: self.sqrt_scale = nn.Parameter(torch.ones(train_data.size(1)))
 
     def forward(self, x, y):
         covariance = torch.exp( -(x - y)**2 / (2 * self.bandwidth * self.bandwidth).unsqueeze(dim=0) )
-        # scales the output if requested
-        if self.use_scaling:
-            scale = (self.sqrt_scale * self.sqrt_scale).unsqueeze(dim=0)
-            covariance = scale * covariance
-        # returns with or without summing accros columns
-        if self.should_reduce: return covariance.sum(dim=-1)
-        else: return covariance
+        return covariance
+
+class CosineSimilarityKernel(nn.Module):
+    "performs a cosine similarity between all the columns at once"
+    def forward(self, x, y):
+        similarity = nn.functional.cosine_similarity(x, y, dim=-1) # in [-1,1]
+        covariance = 0.5 + 0.5*similarity
+        return covariance
 
 #--------------------------------------------------------------------------------------------------
 # tabular kernels
@@ -126,27 +111,34 @@ class TabularKernel(nn.Module):
         # covariance computation
         return self.forward((x_cat,x_cont), (y_cat,y_cont))
 
+#------------------------------------------------
 
 class WeightedSumKernel(TabularKernel):
     "Minimal kernel for tabular data, sums the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
         super().__init__(train_cont, train_cat, embedding_sizes)
-        self.cont_kernel = cont_kernel(train_cont, use_scaling=True, should_reduce=True)
-        self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=True, should_reduce=True)
+        self.cont_kernel = cont_kernel(train_cont)
+        self.cat_kernel = cat_kernel(train_cat, embedding_sizes)
+        nb_features = train_cont.size(1) + train_cat.size(1)
+        self.sqrt_scale = nn.Parameter(torch.ones(nb_features))
 
     def forward(self, x, y):
         "returns a tensor with one similarity per pair (x_i,y_i) of batch element"
+        # computes individual covariances
         x_cat, x_cont = x
         y_cat, y_cont = y
-        covariance = self.cont_kernel(x_cont, y_cont) + self.cat_kernel(x_cat, y_cat)
+        covariances = torch.cat((self.cont_kernel(x_cont, y_cont), self.cat_kernel(x_cat, y_cat)), dim=-1)
+        # weihgted sum of the covariances
+        scale = (self.sqrt_scale * self.sqrt_scale).unsqueeze(dim=0)
+        covariance = torch.sum(scale * covariances, dim=-1)
         return covariance
 
 class WeightedProductKernel(TabularKernel):
     "Learns a weighted geometric average of the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
         super().__init__(train_cont, train_cat, embedding_sizes)
-        self.cont_kernel = cont_kernel(train_cont, use_scaling=False, should_reduce=False)
-        self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=False, should_reduce=False)
+        self.cont_kernel = cont_kernel(train_cont)
+        self.cat_kernel = cat_kernel(train_cat, embedding_sizes)
         nb_features = train_cont.size(1) + train_cat.size(1)
         self.combinator = PositiveMultiply(in_features=nb_features, out_features=1, bias=False)
 
@@ -162,8 +154,8 @@ class ProductOfSumsKernel(TabularKernel):
     "Learns an arbitrary weighted geometric average of the sum of the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
         super().__init__(train_cont, train_cat, embedding_sizes)
-        self.cont_kernel = cont_kernel(train_cont, use_scaling=False, should_reduce=False)
-        self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=False, should_reduce=False)
+        self.cont_kernel = cont_kernel(train_cont)
+        self.cat_kernel = cat_kernel(train_cat, embedding_sizes)
         nb_features = train_cont.size(1) + train_cat.size(1)
         self.combinator = PositiveProductOfSum(in_features=nb_features, out_features=1)
 
@@ -180,11 +172,7 @@ class NeuralKernel(TabularKernel):
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, neural_embedding_size:int=20, layers=[200,100], **neuralnetwork_kwargs):
         super().__init__(train_cont, train_cat, embedding_sizes)
         self.encoder = TabularModel(emb_szs=embedding_sizes, n_cont=train_cont.size(-1), out_sz=neural_embedding_size, layers=layers, y_range=None, **neuralnetwork_kwargs)
-
-    def kernel(self, x, y):
-        # computes the cosinus similarity, in [-1,1], between the embeddings
-        similarity = nn.functional.cosine_similarity(x, y, dim=-1)
-        return 0.5 + 0.5*similarity
+        self.kernel = CosineSimilarityKernel()
 
     def forward(self, x, y):
         "returns a tensor with one similarity per pair (x_i,y_i) of batch element"

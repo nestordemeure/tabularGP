@@ -44,7 +44,7 @@ def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor):
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
     def __init__(self, training_data:DataBunch, nb_training_points:int=50, fit_training_point=True, noise=1e-2,
-                 embedding_sizes:ListSizes=None, tabular_kernel=NeuralKernel, **kernel_kwargs):
+                 embedding_sizes:ListSizes=None, tabular_kernel=ProductOfSumsKernel, **kernel_kwargs):
         "'noise' is given as a fraction of the output std"
         super().__init__()
         # registers training data

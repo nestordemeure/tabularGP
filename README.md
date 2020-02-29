@@ -16,14 +16,14 @@ If you are a gaussian process expert, you might be better served by [gpytorch](h
 
 ## TODO
 
-### Documentation
+### Various
 
 - add usage example to readme
 - add demo notebook
+- compare to baseline neural networks
 
 ### Kernel
 
-- add neural network encoder kernel
 - make abstract classes for the various kinds of kernel
 - add matern kernel
 - add a date/time specific kernel
