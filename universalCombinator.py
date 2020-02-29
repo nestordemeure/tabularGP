@@ -20,7 +20,7 @@ class PositiveLinear(Linear):
 
     def __init__(self, in_features, out_features, bias=True, use_exponential=False):
         "by default, positivity is enforced with a square, if you only care about the magnitude of the parameter, set `use_exponential` to true to use an exponential instead"
-        super(PositiveLinear, self).__init__(in_features, out_features, bias)
+        super().__init__(in_features, out_features, bias)
         self.use_exponential = use_exponential
 
     def forward(self, input):
@@ -45,10 +45,11 @@ class PositiveMultiply(Module):
     def __init__(self, in_features, out_features, bias=True, epsilon=1e-8):
         """`epsilon` is there to insure that there will be no 0 in the inputs (causing Nan or infinities in the outputs)
         adding a bias as the effect of multiplying the output with a constant"""
-        super(PositiveMultiply, self).__init__()
+        super().__init__()
         self.register_buffer('epsilon', torch.Tensor([epsilon]))
         self.in_features = in_features
         self.out_features = out_features
+        # weights initialized to start equivalent to a geometric mean
         self.weight = Parameter(torch.ones(out_features, in_features) / in_features)
         if bias: self.bias = Parameter(torch.zeros(out_features))
         else: self.register_parameter('bias', None)
@@ -86,7 +87,7 @@ class Polynomial(Module):
 
     def __init__(self, in_features, out_features, nb_terms, epsilon=1e-8):
         "`nb_terms` is the number of terms of the polynomial and not its order"
-        super(Polynomial, self).__init__()
+        super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.nb_terms = nb_terms
@@ -104,13 +105,13 @@ class PositiveProductOfSum(Module):
     WARNING: works under the hypothesis that the inputs are positive"""
     __constants__ = ['in_features', 'out_features', 'nb_sum']
 
-    def __init__(self, in_features, out_features, nb_sums=None, epsilon=1e-8, use_exponential=False):
+    def __init__(self, in_features, out_features, nb_sums=None, epsilon=1e-8):
         "`nb_sums` is `in_features` by default it corresponds to the number of sums that will be multiplied together"
-        super(PositiveProductOfSum, self).__init__()
+        super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.nb_sums = in_features if nb_sums is None else nb_sums
-        self.addition = PositiveLinear(in_features, self.nb_sums, bias=False, use_exponential=use_exponential)
+        self.addition = PositiveLinear(in_features, self.nb_sums, bias=False, use_exponential=False)
         self.product = PositiveMultiply(self.nb_sums, out_features, bias=True, epsilon=epsilon)
 
     def forward(self, input):

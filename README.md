@@ -22,7 +22,6 @@ The aim of this repository is to make it easy to use gaussian process on tabular
 ### Kernel
 
 - add neural network encoder kernel
-- add Weighted Product kernel
 
 ### Model
 

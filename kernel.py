@@ -8,10 +8,10 @@ import numpy as np
 from torch import nn
 import torch
 # my imports
-from universalCombinator import PositiveProductOfSum
+from universalCombinator import PositiveMultiply, PositiveProductOfSum
 
-__all__ = ['kernelMatrix', 'IndexKernelSingle', 'RBFKernel', 'HammingKernel', 'IndexKernel', 
-           'WeightedSumKernel', 'ProductOfSumsKernel']
+__all__ = ['kernelMatrix', 'IndexKernelSingle', 'RBFKernel', 'HammingKernel', 'IndexKernel',
+           'WeightedSumKernel', 'WeightedProductKernel', 'ProductOfSumsKernel']
 
 #--------------------------------------------------------------------------------------------------
 # functions
@@ -124,7 +124,7 @@ class IndexKernel(nn.Module):
 # tabular kernels
 
 class WeightedSumKernel(nn.Module):
-    "Minimal kernel for tabular data, sums the kernel for all the columns"
+    "Minimal kernel for tabular data, sums the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes):
         super().__init__()
         self.cont_kernel = RBFKernel(train_cont)
@@ -137,8 +137,25 @@ class WeightedSumKernel(nn.Module):
         covariance = self.cont_kernel(x_cont, y_cont) + self.cat_kernel(x_cat, y_cat)
         return covariance
 
+class WeightedProductKernel(nn.Module):
+    "Learns a weighted geometric average of the covariances for all the columns"
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes):
+        super().__init__()
+        self.cont_kernel = RBFKernel(train_cont, use_scaling=False, should_reduce=False)
+        self.cat_kernel = IndexKernel(train_cat, embedding_sizes, should_reduce=False)
+        nb_features = train_cont.size(1) + train_cat.size(1)
+        self.combinator = PositiveMultiply(in_features=nb_features, out_features=1, bias=False)
+
+    def forward(self, x, y):
+        "returns a tensor with one similarity per pair (x_i,y_i) of batch element"
+        x_cat, x_cont = x
+        y_cat, y_cont = y
+        covariances = torch.cat((self.cont_kernel(x_cont, y_cont), self.cat_kernel(x_cat, y_cat)), dim=-1)
+        covariance = self.combinator(covariances).squeeze(dim=-1)
+        return covariance
+
 class ProductOfSumsKernel(nn.Module):
-    "Learn arbitrary poducts of sum of input kernels"
+    "Learns an arbitrary weighted geometric average of the sum of the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes):
         super().__init__()
         self.cont_kernel = RBFKernel(train_cont, use_scaling=False, should_reduce=False)
@@ -155,4 +172,3 @@ class ProductOfSumsKernel(nn.Module):
         return covariance
 
 # TODO add neural network encoder kernel
-# TODO add Weighted Product kernel

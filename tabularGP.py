@@ -8,7 +8,7 @@ from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 # my imports
 from utils import psd_safe_cholesky
-from kernel import kernelMatrix, WeightedSumKernel, ProductOfSumsKernel
+from kernel import kernelMatrix, ProductOfSumsKernel
 
 __all__ = ['gp_gaussian_marginal_log_likelihood', 'TabularGPModel', 'tabularGP_learner']
 
@@ -60,7 +60,6 @@ class TabularGPModel(nn.Module):
         self.std_scale = nn.Parameter(output_std)
         self.std_noise = nn.Parameter(output_std * noise)
         embedding_sizes = training_data.get_emb_szs(ifnone(embedding_sizes, {}))
-        #self.kernel = WeightedSumKernel(train_input_cont, train_input_cat, embedding_sizes)
         self.kernel = ProductOfSumsKernel(train_input_cont, train_input_cat, embedding_sizes)
         self.prior = nn.Parameter(train_outputs.mean(dim=0)) # constant prior
 

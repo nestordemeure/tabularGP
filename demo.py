@@ -20,7 +20,7 @@ dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_n
                   .databunch())
 
 # gp model
-glearn = tabularGP_learner(dls, nb_training_points=50, metrics=[rmse, mae])
+glearn = tabularGP_learner(dls, nb_training_points=50, fit_training_point=True , metrics=[rmse, mae])
 glearn.fit_one_cycle(10, max_lr=1e-1)
 
 # classical model
