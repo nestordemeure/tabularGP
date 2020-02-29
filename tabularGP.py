@@ -71,10 +71,12 @@ class TabularGPModel(nn.Module):
         # cholesky decompositions (accelerate solving of linear systems)
         L_train_train = psd_safe_cholesky(cov_train_train)
         (L_test, _) = torch.triangular_solve(cov_train_test, L_train_train, upper=False)
+        # outputs for the training data with prior correction
+        train_outputs = self.train_outputs - self.prior
+        if train_outputs.dim() == 1: train_outputs = train_outputs.unsqueeze(dim=-1) # deals with 1D outputs
         # predicted mean
-        prior = self.prior.unsqueeze(dim=0)
-        (output_to_weight, _) = torch.triangular_solve(self.train_outputs - prior, L_train_train, upper=False) 
-        mean = torch.mm(L_test.t(), output_to_weight) + prior
+        (output_to_weight, _) = torch.triangular_solve(train_outputs, L_train_train, upper=False)
+        mean = torch.mm(L_test.t(), output_to_weight) + self.prior
         # predicted std
         var_noise = (self.std_noise * self.std_noise).clamp_min(1e-8).unsqueeze(dim=0) # clamp to insure we are above 0
         std_scale = torch.abs(self.std_scale).unsqueeze(dim=0)
