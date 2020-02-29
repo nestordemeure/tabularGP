@@ -10,11 +10,11 @@ import torch
 # my imports
 from universalCombinator import PositiveMultiply, PositiveProductOfSum
 
-__all__ = ['kernelMatrix', 'IndexKernelSingle', 'RBFKernel', 'HammingKernel', 'IndexKernel',
+__all__ = ['kernelMatrix', 'IndexKernelSingle', 'IndexKernel', 'HammingKernel', 'RBFKernel',
            'WeightedSumKernel', 'WeightedProductKernel', 'ProductOfSumsKernel']
 
 #--------------------------------------------------------------------------------------------------
-# functions
+# various
 
 def kernelMatrix(kernel, x, y):
     "Utilitary function that computes the matrix of all combinaison of kernel(x_i,y_j)"
@@ -35,12 +35,8 @@ def kernelMatrix(kernel, x, y):
     # covariance computation
     return kernel((x_cat,x_cont), (y_cat,y_cont))
 
-def _default_bandwidth(x):
-    "Silverman's rule of thumb as a default value for the bandwidth"
-    return 0.9 * x.std(dim=0) * (x.size(dim=0)**-0.2)
-
 #--------------------------------------------------------------------------------------------------
-# single column kernels
+# categorial kernels
 
 class IndexKernelSingle(nn.Module):
     "IndexKernel but for a single column"
@@ -60,28 +56,22 @@ class IndexKernelSingle(nn.Module):
         # evaluate the covariace matrix for our pairs of categories
         return covariance[x, y]
 
-#--------------------------------------------------------------------------------------------------
-# multi columns kernels
-
-class RBFKernel(nn.Module):
-    "default, gaussian, kernel on reals"
-    def __init__(self, train_data, should_reduce=True, use_scaling=True):
+class IndexKernel(nn.Module):
+    """
+    default kernel on categories
+    inspired by [gpytorch's IndexKernel](https://gpytorch.readthedocs.io/en/latest/kernels.html#indexkernel)
+    """
+    def __init__(self, train_data, embedding_sizes:ListSizes, should_reduce=True, use_scaling=None):
+        "the 'use_scaling' parameter is ignored as this kernel requires scaling"
         super().__init__()
         self.should_reduce = should_reduce
-        self.nb_training_points = train_data.size(1)
-        self.bandwidth = nn.Parameter(_default_bandwidth(train_data))
-        self.use_scaling = use_scaling
-        if use_scaling: self.sqrt_scale = nn.Parameter(torch.ones(train_data.size(1)))
+        self.cat_covs = nn.ModuleList([IndexKernelSingle(train_data[:,i],nb_category,rank) for i,(nb_category,rank) in enumerate(embedding_sizes)])
 
     def forward(self, x, y):
-        covariance = torch.exp( -(x - y)**2 / (2 * self.bandwidth * self.bandwidth).unsqueeze(dim=0) )
-        # scales the output if requested
-        if self.use_scaling:
-            scale = (self.sqrt_scale * self.sqrt_scale).unsqueeze(dim=0)
-            covariance = scale * covariance
+        covariances = [cov(x[...,i],y[...,i]) for i,cov in enumerate(self.cat_covs)]
         # returns with or without summing accros columns
-        if self.should_reduce: return covariance.sum(dim=-1)
-        else: return covariance
+        if self.should_reduce: return sum(covariances)
+        else: return torch.stack(covariances, dim=-1)
 
 class HammingKernel(nn.Module):
     "trivial kernel on categories"
@@ -104,31 +94,42 @@ class HammingKernel(nn.Module):
         if self.should_reduce: return covariance.sum(dim=-1)
         else: return covariance
 
-class IndexKernel(nn.Module):
-    """
-    default kernel on categories
-    inspired by [gpytorch's IndexKernel](https://gpytorch.readthedocs.io/en/latest/kernels.html#indexkernel)
-    """
-    def __init__(self, train_data, embedding_sizes:ListSizes, should_reduce=True):
+#--------------------------------------------------------------------------------------------------
+# continuous kernels
+
+def _default_bandwidth(x):
+    "Silverman's rule of thumb as a default value for the bandwidth"
+    return 0.9 * x.std(dim=0) * (x.size(dim=0)**-0.2)
+
+class RBFKernel(nn.Module):
+    "default, gaussian, kernel on reals"
+    def __init__(self, train_data, should_reduce=True, use_scaling=True):
         super().__init__()
         self.should_reduce = should_reduce
-        self.cat_covs = nn.ModuleList([IndexKernelSingle(train_data[:,i],nb_category,rank) for i,(nb_category,rank) in enumerate(embedding_sizes)])
+        self.nb_training_points = train_data.size(1)
+        self.bandwidth = nn.Parameter(_default_bandwidth(train_data))
+        self.use_scaling = use_scaling
+        if use_scaling: self.sqrt_scale = nn.Parameter(torch.ones(train_data.size(1)))
 
     def forward(self, x, y):
-        covariances = [cov(x[...,i],y[...,i]) for i,cov in enumerate(self.cat_covs)]
+        covariance = torch.exp( -(x - y)**2 / (2 * self.bandwidth * self.bandwidth).unsqueeze(dim=0) )
+        # scales the output if requested
+        if self.use_scaling:
+            scale = (self.sqrt_scale * self.sqrt_scale).unsqueeze(dim=0)
+            covariance = scale * covariance
         # returns with or without summing accros columns
-        if self.should_reduce: return sum(covariances)
-        else: return torch.stack(covariances, dim=-1)
+        if self.should_reduce: return covariance.sum(dim=-1)
+        else: return covariance
 
 #--------------------------------------------------------------------------------------------------
 # tabular kernels
 
 class WeightedSumKernel(nn.Module):
     "Minimal kernel for tabular data, sums the covariances for all the columns"
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes):
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
         super().__init__()
-        self.cont_kernel = RBFKernel(train_cont)
-        self.cat_kernel = IndexKernel(train_cat, embedding_sizes)
+        self.cont_kernel = cont_kernel(train_cont, use_scaling=True, should_reduce=True)
+        self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=True, should_reduce=True)
 
     def forward(self, x, y):
         "returns a tensor with one similarity per pair (x_i,y_i) of batch element"
@@ -139,10 +140,10 @@ class WeightedSumKernel(nn.Module):
 
 class WeightedProductKernel(nn.Module):
     "Learns a weighted geometric average of the covariances for all the columns"
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes):
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
         super().__init__()
-        self.cont_kernel = RBFKernel(train_cont, use_scaling=False, should_reduce=False)
-        self.cat_kernel = IndexKernel(train_cat, embedding_sizes, should_reduce=False)
+        self.cont_kernel = cont_kernel(train_cont, use_scaling=False, should_reduce=False)
+        self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=False, should_reduce=False)
         nb_features = train_cont.size(1) + train_cat.size(1)
         self.combinator = PositiveMultiply(in_features=nb_features, out_features=1, bias=False)
 
@@ -156,10 +157,10 @@ class WeightedProductKernel(nn.Module):
 
 class ProductOfSumsKernel(nn.Module):
     "Learns an arbitrary weighted geometric average of the sum of the covariances for all the columns"
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes):
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
         super().__init__()
-        self.cont_kernel = RBFKernel(train_cont, use_scaling=False, should_reduce=False)
-        self.cat_kernel = IndexKernel(train_cat, embedding_sizes, should_reduce=False)
+        self.cont_kernel = cont_kernel(train_cont, use_scaling=False, should_reduce=False)
+        self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=False, should_reduce=False)
         nb_features = train_cont.size(1) + train_cat.size(1)
         self.combinator = PositiveProductOfSum(in_features=nb_features, out_features=1)
 
@@ -170,5 +171,3 @@ class ProductOfSumsKernel(nn.Module):
         covariances = torch.cat((self.cont_kernel(x_cont, y_cont), self.cat_kernel(x_cat, y_cat)), dim=-1)
         covariance = self.combinator(covariances).squeeze(dim=-1)
         return covariance
-
-# TODO add neural network encoder kernel

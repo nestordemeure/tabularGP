@@ -16,12 +16,15 @@ The aim of this repository is to make it easy to use gaussian process on tabular
 
 ### Documentation
 
-- add usage example
+- add usage example to readme
 - add demo notebook
 
 ### Kernel
 
 - add neural network encoder kernel
+- make abstract classes for the various kinds of kernel
+- add matern kernel
+- add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
 
 ### Model
 
