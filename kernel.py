@@ -3,37 +3,15 @@
 # a kernel can be seen as a fucntion computing the similarity between two inputs
 # source: https://github.com/nestordemeure/tabularGP/blob/master/kernel.py
 
-from fastai.tabular import ListSizes
+from fastai.tabular import ListSizes, TabularModel
 import numpy as np
 from torch import nn
 import torch
 # my imports
 from universalCombinator import PositiveMultiply, PositiveProductOfSum
 
-__all__ = ['kernelMatrix', 'IndexKernelSingle', 'IndexKernel', 'HammingKernel', 'RBFKernel',
-           'WeightedSumKernel', 'WeightedProductKernel', 'ProductOfSumsKernel']
-
-#--------------------------------------------------------------------------------------------------
-# various
-
-def kernelMatrix(kernel, x, y):
-    "Utilitary function that computes the matrix of all combinaison of kernel(x_i,y_j)"
-    x_cat, x_cont = x
-    y_cat, y_cont = y
-    # cat
-    nb_x_cat_elements = x_cat.size(0)
-    nb_y_cat_elements = y_cat.size(0)
-    cat_element_size = x_cat.size(1)
-    x_cat = x_cat.unsqueeze(1).expand(nb_x_cat_elements, nb_y_cat_elements, cat_element_size)
-    y_cat = y_cat.unsqueeze(0).expand(nb_x_cat_elements, nb_y_cat_elements, cat_element_size)
-    # cont
-    nb_x_cont_elements = x_cont.size(0)
-    nb_y_cont_elements = y_cont.size(0)
-    cont_element_size = x_cont.size(1)
-    x_cont = x_cont.unsqueeze(1).expand(nb_x_cont_elements, nb_y_cont_elements, cont_element_size)
-    y_cont = y_cont.unsqueeze(0).expand(nb_x_cont_elements, nb_y_cont_elements, cont_element_size)
-    # covariance computation
-    return kernel((x_cat,x_cont), (y_cat,y_cont))
+__all__ = ['IndexKernelSingle', 'IndexKernel', 'HammingKernel', 'RBFKernel',
+           'WeightedSumKernel', 'WeightedProductKernel', 'ProductOfSumsKernel', 'NeuralKernel']
 
 #--------------------------------------------------------------------------------------------------
 # categorial kernels
@@ -124,10 +102,35 @@ class RBFKernel(nn.Module):
 #--------------------------------------------------------------------------------------------------
 # tabular kernels
 
-class WeightedSumKernel(nn.Module):
+class TabularKernel(nn.Module):
+    "abstract class for kernel applied to tabular data"
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes):
+        super().__init__()
+
+    def matrix(self, x, y):
+        "Utilitary function that computes the matrix of all combinaison of kernel(x_i,y_j)"
+        x_cat, x_cont = x
+        y_cat, y_cont = y
+        # cat
+        nb_x_cat_elements = x_cat.size(0)
+        nb_y_cat_elements = y_cat.size(0)
+        cat_element_size = x_cat.size(1)
+        x_cat = x_cat.unsqueeze(1).expand(nb_x_cat_elements, nb_y_cat_elements, cat_element_size)
+        y_cat = y_cat.unsqueeze(0).expand(nb_x_cat_elements, nb_y_cat_elements, cat_element_size)
+        # cont
+        nb_x_cont_elements = x_cont.size(0)
+        nb_y_cont_elements = y_cont.size(0)
+        cont_element_size = x_cont.size(1)
+        x_cont = x_cont.unsqueeze(1).expand(nb_x_cont_elements, nb_y_cont_elements, cont_element_size)
+        y_cont = y_cont.unsqueeze(0).expand(nb_x_cont_elements, nb_y_cont_elements, cont_element_size)
+        # covariance computation
+        return self.forward((x_cat,x_cont), (y_cat,y_cont))
+
+
+class WeightedSumKernel(TabularKernel):
     "Minimal kernel for tabular data, sums the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
-        super().__init__()
+        super().__init__(train_cont, train_cat, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont, use_scaling=True, should_reduce=True)
         self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=True, should_reduce=True)
 
@@ -138,10 +141,10 @@ class WeightedSumKernel(nn.Module):
         covariance = self.cont_kernel(x_cont, y_cont) + self.cat_kernel(x_cat, y_cat)
         return covariance
 
-class WeightedProductKernel(nn.Module):
+class WeightedProductKernel(TabularKernel):
     "Learns a weighted geometric average of the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
-        super().__init__()
+        super().__init__(train_cont, train_cat, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont, use_scaling=False, should_reduce=False)
         self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=False, should_reduce=False)
         nb_features = train_cont.size(1) + train_cat.size(1)
@@ -155,10 +158,10 @@ class WeightedProductKernel(nn.Module):
         covariance = self.combinator(covariances).squeeze(dim=-1)
         return covariance
 
-class ProductOfSumsKernel(nn.Module):
+class ProductOfSumsKernel(TabularKernel):
     "Learns an arbitrary weighted geometric average of the sum of the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
-        super().__init__()
+        super().__init__(train_cont, train_cat, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont, use_scaling=False, should_reduce=False)
         self.cat_kernel = cat_kernel(train_cat, embedding_sizes, use_scaling=False, should_reduce=False)
         nb_features = train_cont.size(1) + train_cat.size(1)
@@ -171,3 +174,34 @@ class ProductOfSumsKernel(nn.Module):
         covariances = torch.cat((self.cont_kernel(x_cont, y_cont), self.cat_kernel(x_cat, y_cat)), dim=-1)
         covariance = self.combinator(covariances).squeeze(dim=-1)
         return covariance
+
+class NeuralKernel(TabularKernel):
+    "Uses a neural network to learn an embedding for the inputs. The covariance between two inputs is their cosinus similarity."
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, neural_embedding_size:int=20, layers=[200,100], **neuralnetwork_kwargs):
+        super().__init__(train_cont, train_cat, embedding_sizes)
+        self.encoder = TabularModel(emb_szs=embedding_sizes, n_cont=train_cont.size(-1), out_sz=neural_embedding_size, layers=layers, y_range=None, **neuralnetwork_kwargs)
+
+    def kernel(self, x, y):
+        # computes the cosinus similarity, in [-1,1], between the embeddings
+        similarity = nn.functional.cosine_similarity(x, y, dim=-1)
+        return 0.5 + 0.5*similarity
+
+    def forward(self, x, y):
+        "returns a tensor with one similarity per pair (x_i,y_i) of batch element"
+        x = self.encoder(*x)
+        y = self.encoder(*y)
+        return self.kernel(x, y)
+
+    def matrix(self, x, y):
+        "Computes the matrix of all combinaison of kernel(x_i,y_j)"
+        # encodes the inputs
+        x = self.encoder(*x)
+        y = self.encoder(*y)
+        # builds matrix
+        nb_x_elements = x.size(0)
+        nb_y_elements = y.size(0)
+        element_size = x.size(1)
+        x = x.unsqueeze(1).expand(nb_x_elements, nb_y_elements, element_size)
+        y = y.unsqueeze(0).expand(nb_x_elements, nb_y_elements, element_size)
+        # covariance computation
+        return self.kernel(x, y)

@@ -8,7 +8,7 @@ from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 # my imports
 from utils import psd_safe_cholesky
-from kernel import kernelMatrix, ProductOfSumsKernel
+from kernel import ProductOfSumsKernel, NeuralKernel
 
 __all__ = ['gp_gaussian_marginal_log_likelihood', 'TabularGPModel', 'tabularGP_learner']
 
@@ -43,8 +43,9 @@ def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor):
 
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
-    def __init__(self, training_data:DataBunch, nb_training_points:int=50, fit_training_point=True, noise=1e-2, embedding_sizes:ListSizes=None):
-        "noise is in faction of the output std"
+    def __init__(self, training_data:DataBunch, nb_training_points:int=50, fit_training_point=True, noise=1e-2,
+                 embedding_sizes:ListSizes=None, tabular_kernel=NeuralKernel, **kernel_kwargs):
+        "'noise' is given as a fraction of the output std"
         super().__init__()
         # registers training data
         train_input_cat, train_input_cont, train_outputs = _get_training_points(training_data, nb_training_points)
@@ -60,13 +61,13 @@ class TabularGPModel(nn.Module):
         self.std_scale = nn.Parameter(output_std)
         self.std_noise = nn.Parameter(output_std * noise)
         embedding_sizes = training_data.get_emb_szs(ifnone(embedding_sizes, {}))
-        self.kernel = ProductOfSumsKernel(train_input_cont, train_input_cat, embedding_sizes)
+        self.kernel = tabular_kernel(train_input_cont, train_input_cat, embedding_sizes, **kernel_kwargs)
         self.prior = nn.Parameter(train_outputs.mean(dim=0)) # constant prior
 
     def forward(self, x_cat:Tensor, x_cont:Tensor):
         # covariance between combinaisons of samples
-        cov_train_train = kernelMatrix(self.kernel, (self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
-        cov_train_test = kernelMatrix(self.kernel, (self.train_input_cat, self.train_input_cont), (x_cat, x_cont))
+        cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
+        cov_train_test = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (x_cat, x_cont))
         diag_cov_test_test = self.kernel((x_cat, x_cont), (x_cat, x_cont))
         # cholesky decompositions (accelerate solving of linear systems)
         L_train_train = psd_safe_cholesky(cov_train_train)
@@ -78,7 +79,7 @@ class TabularGPModel(nn.Module):
         (output_to_weight, _) = torch.triangular_solve(train_outputs, L_train_train, upper=False)
         mean = torch.mm(L_test.t(), output_to_weight) + self.prior
         # predicted std
-        var_noise = (self.std_noise * self.std_noise).clamp_min(1e-8).unsqueeze(dim=0) # clamp to insure we are above 0
+        var_noise = (self.std_noise * self.std_noise).clamp_min(1e-8).unsqueeze(dim=0) # clamp to insure we are strictly above 0
         std_scale = torch.abs(self.std_scale).unsqueeze(dim=0)
         covar = (diag_cov_test_test - torch.sum(L_test**2, dim=0)).clamp_min(0.0).unsqueeze(dim=1) # clamp against negative variance
         stdev = torch.sqrt(covar + var_noise) * std_scale
@@ -95,9 +96,3 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, fit_training_po
     # defines the model
     model = TabularGPModel(data, nb_training_points, fit_training_point, noise, embedding_sizes)
     return Learner(data, model, metrics=metrics, loss_func=loss_func, **learn_kwargs)
-
-# TODO add methods to do classification
-# TODO add feature importance for kernels that support it out of the box
-# TODO add transfer learning (by reusing the kernel)
-# TODO use kmean clustering to find representative inducing points
-# TODO pass kwargs to kernel
