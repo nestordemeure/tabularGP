@@ -1,7 +1,8 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
-__all__ = ['psd_safe_cholesky', 'Scale']
+__all__ = ['psd_safe_cholesky', 'Scale', 'soft_clamp_max', 'soft_clamp']
 
 def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
     """Compute the Cholesky decomposition of A. If A is only p.s.d, add a small jitter to the diagonal.
@@ -46,3 +47,12 @@ class Scale(nn.Module):
     def forward(self, x):
         scale = self.sqrt_scale * self.sqrt_scale
         return scale * x
+
+def soft_clamp_max(x, max_value):
+    "clamp_max but differentiable"
+    return x - F.softplus(x - max_value)
+
+def soft_clamp(x, min_value, max_value):
+    """insures that the output is in the given interval
+    NOTE: this is not really a clamp"""
+    return min_value + (max_value - min_value)*F.sigmoid(x)

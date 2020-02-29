@@ -79,12 +79,12 @@ class TabularGPModel(nn.Module):
         (output_to_weight, _) = torch.triangular_solve(train_outputs, L_train_train, upper=False)
         mean = torch.mm(L_test.t(), output_to_weight) + self.prior
         # predicted std
-        var_noise = (self.std_noise * self.std_noise).clamp_min(1e-8).unsqueeze(dim=0) # clamp to insure we are strictly above 0
+        var_noise = (self.std_noise * self.std_noise).unsqueeze(dim=0)
         std_scale = torch.abs(self.std_scale).unsqueeze(dim=0)
         covar = (diag_cov_test_test - torch.sum(L_test**2, dim=0)).clamp_min(0.0).unsqueeze(dim=1) # clamp against negative variance
         stdev = torch.sqrt(covar + var_noise) * std_scale
         # adds std as an additional member to the mean
-        mean.stdev = stdev
+        mean.stdev = stdev.clamp(1e-10) # clamp to insure we are strictly above 0
         return mean
 
 def tabularGP_learner(data:DataBunch, nb_training_points:int=50, fit_training_point=True, noise=1e-2, embedding_sizes:ListSizes=None, metrics=None, **learn_kwargs):

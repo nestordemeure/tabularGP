@@ -3,11 +3,12 @@
 # a kernel can be seen as a fucntion computing the similarity between two inputs
 # source: https://github.com/nestordemeure/tabularGP/blob/master/kernel.py
 
+import abc
+# library imports
 from fastai.tabular import ListSizes, TabularModel
 import numpy as np
 from torch import nn
 import torch
-import abc
 # my imports
 from utils import Scale
 from universalCombinator import PositiveMultiply, PositiveProductOfSum

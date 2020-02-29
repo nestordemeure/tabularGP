@@ -15,6 +15,12 @@ If you are a gaussian process expert, you might be better served by [gpytorch](h
 - transfer-learning to recycle models (TODO)
 - neural network based kernel
 
+## Notes
+
+A learning rate of about `1e-1` seems like a good default.
+
+Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial with this kind of model but it can also lead to numerically unstable situations.
+
 ## TODO
 
 ### Various
@@ -25,7 +31,7 @@ If you are a gaussian process expert, you might be better served by [gpytorch](h
 
 ### Kernel
 
-- add matern kernel
+- add matern kernels
 - add a date/time specific kernel
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
 
