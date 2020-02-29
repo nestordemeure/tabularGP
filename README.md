@@ -23,23 +23,22 @@ Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial wi
 
 ## TODO
 
-### Various
+#### Various
 
 - add usage example to readme
 - add demo notebook
 - compare to baseline neural networks
 
-### Kernel
+#### Kernel
 
 - add matern kernels
 - add a date/time specific kernel
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
 
-### Model
+#### Model
 
 - add classification
 - add feature importance for kernels that supports it
 - add transfer learning
-- use kmean clustering to find representative inducing points
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

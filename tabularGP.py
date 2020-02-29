@@ -12,7 +12,35 @@ from kernel import ProductOfSumsKernel
 
 __all__ = ['gp_gaussian_marginal_log_likelihood', 'TabularGPModel', 'tabularGP_learner']
 
-def _get_training_points(data:DataBunch, nb_points:int):
+#--------------------------------------------------------------------------------------------------
+# Training points selection
+
+def _hamming_distances(row:Tensor, data:Tensor):
+    "returns a vector with the hamming distance between a row and each row of a dataset"
+    return (row.unsqueeze(dim=0) != data).sum(dim=1)
+
+def _euclidian_distances(row:Tensor, data:Tensor):
+    "returns a vector with the euclidian distance between a row and each row of a dataset"
+    return torch.sum((row.unsqueeze(dim=0) - data)**2, dim=1)
+
+def _maximalyDifferentPoints(data:Tensor, nb_cluster:int, distance_func=_hamming_distances):
+    """returns the given number of indexes such that the associated rows are as far as possible (according to hamming distance)
+     using an approximate greedy algorithm"""
+    # initialize with the first point of the dataset
+    indexes = [0]
+    row = data[0, ...]
+    minimum_distances = distance_func(row, data)
+    for _ in range(nb_cluster - 1):
+        # finds the row that maximizes the minimum distances to the existing selections
+        index = torch.argmax(minimum_distances, dim=0)
+        indexes.append(index.item())
+        # updates distances
+        row = data[index, ...]
+        distances = distance_func(row, data)
+        minimum_distances = torch.min(minimum_distances, distances)
+    return torch.LongTensor(indexes)
+
+def _get_training_points(data:DataBunch, nb_points:int, use_random_training_points=False):
     "gets a (cat,cont,y) tuple with the given number of elements"
     # extracts all the dataset as a single tensor
     data_cat = []
@@ -28,11 +56,25 @@ def _get_training_points(data:DataBunch, nb_points:int):
     data_cat = torch.cat(data_cat)
     data_cont = torch.cat(data_cont)
     data_y = torch.cat(data_y)
-    # selects inducing points
-    data_cat = data_cat[:nb_points, ...]
-    data_cont = data_cont[:nb_points, ...]
-    data_y = data_y[:nb_points, ...]
+    # selects training points
+    if use_random_training_points:
+        print("using rando point")
+        indices = torch.arange(0, nb_points)
+    elif data_cat.size(1) > 0:
+        print("optimizing")
+        # we optimize categorial columns as continuous columns can always be optimized
+        indices = _maximalyDifferentPoints(data_cat, nb_points)
+    else:
+        print("No categorial column was detected, training point selection will be done on continuous columns.")
+        indices = _maximalyDifferentPoints(data_cont, nb_points, distance_func=_euclidian_distances)
+    # assemble the training data
+    data_cat = data_cat[indices, ...]
+    data_cont = data_cont[indices, ...]
+    data_y = data_y[indices, ...]
     return (data_cat, data_cont, data_y)
+
+#--------------------------------------------------------------------------------------------------
+# Model
 
 def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor):
     "loss function for a regression gaussian process"
@@ -43,12 +85,12 @@ def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor):
 
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
-    def __init__(self, training_data:DataBunch, nb_training_points:int=50, fit_training_point=True, noise=1e-2,
-                 embedding_sizes:ListSizes=None, tabular_kernel=ProductOfSumsKernel, **kernel_kwargs):
+    def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False, fit_training_point=True,
+                 noise=1e-2, embedding_sizes:ListSizes=None, tabular_kernel=ProductOfSumsKernel, **kernel_kwargs):
         "'noise' is given as a fraction of the output std"
         super().__init__()
         # registers training data
-        train_input_cat, train_input_cont, train_outputs = _get_training_points(training_data, nb_training_points)
+        train_input_cat, train_input_cont, train_outputs = _get_training_points(training_data, nb_training_points, use_random_training_points)
         self.register_buffer('train_input_cat', train_input_cat)
         if fit_training_point:
             self.train_input_cont = nn.Parameter(train_input_cont)
@@ -87,12 +129,14 @@ class TabularGPModel(nn.Module):
         mean.stdev = stdev.clamp(1e-10) # clamp to insure we are strictly above 0
         return mean
 
-def tabularGP_learner(data:DataBunch, nb_training_points:int=50, fit_training_point=True, noise=1e-2, embedding_sizes:ListSizes=None, metrics=None, **learn_kwargs):
+def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False, fit_training_point=True,
+                      noise=1e-2, embedding_sizes:ListSizes=None, metrics=None, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # picks a loss function for the task
     is_classification = hasattr(data, 'classes')
     if is_classification: raise Exception("tabularGP does not implement classification yet!")
     else: loss_func = gp_gaussian_marginal_log_likelihood
     # defines the model
-    model = TabularGPModel(data, nb_training_points, fit_training_point, noise, embedding_sizes)
+    model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
+                           fit_training_point=fit_training_point, noise=noise, embedding_sizes=embedding_sizes)
     return Learner(data, model, metrics=metrics, loss_func=loss_func, **learn_kwargs)
