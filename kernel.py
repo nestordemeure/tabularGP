@@ -1,5 +1,6 @@
 # Kernels
 # Kernels for gaussian process based models
+# a kernel can be seen as a fucntion computing the similarity between two inputs
 # source: https://github.com/nestordemeure/tabularGP/blob/master/kernel.py
 
 from fastai.tabular import ListSizes
@@ -17,7 +18,7 @@ __all__ = ['kernelMatrix', 'IndexKernelSingle', 'RBFKernel', 'HammingKernel', 'I
 def kernelMatrix(kernel, x, y):
     "Utilitary function that computes the matrix of all combinaison of kernel(x_i,y_j)"
     x_cat, x_cont = x
-    y_cat, y_cont = y 
+    y_cat, y_cont = y
     # cat
     nb_x_cat_elements = x_cat.size(0)
     nb_y_cat_elements = y_cat.size(0)

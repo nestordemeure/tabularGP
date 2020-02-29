@@ -29,9 +29,9 @@ def _get_training_points(data:DataBunch, nb_points:int):
     data_cont = torch.cat(data_cont)
     data_y = torch.cat(data_y)
     # selects inducing points
-    data_cat = data_cat[:nb_points, :]
-    data_cont = data_cont[:nb_points, :]
-    data_y = data_y[:nb_points, :]
+    data_cat = data_cat[:nb_points, ...]
+    data_cont = data_cont[:nb_points, ...]
+    data_y = data_y[:nb_points, ...]
     return (data_cat, data_cont, data_y)
 
 def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor):
