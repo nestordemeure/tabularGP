@@ -5,8 +5,8 @@
 # source: https://github.com/nestordemeure/tabularGP/blob/master/universalCombinator.py
 
 from numpy import pi
-from torch.nn import Linear, Module
-import torch.functional as F
+from torch.nn import Linear, Module, Parameter
+import torch.nn.functional as F
 import torch
 
 __all__ = ['PositiveLinear', 'PositiveMultiply', 'Multiply', 'Polynomial', 'PositiveProductOfSum']
@@ -37,7 +37,7 @@ class PositiveLinear(Linear):
 # We provide a positive version and a general version that can also take negative inputs. 
 # When possible the positive version is recommended as it is faster and trains better (no discontinuity along negative inputs).
 
-class PositiveMultiply(Linear):
+class PositiveMultiply(Module):
     """Learns one products of arbitrary power of inputs per output.
     WARNING: this module assumes that its inputs will be positive (and insures that the output will stay positive)"""
     __constants__ = ['bias', 'in_features', 'out_features', 'epsilon']
@@ -45,8 +45,13 @@ class PositiveMultiply(Linear):
     def __init__(self, in_features, out_features, bias=True, epsilon=1e-8):
         """`epsilon` is there to insure that there will be no 0 in the inputs (causing Nan or infinities in the outputs)
         adding a bias as the effect of multiplying the output with a constant"""
-        super(PositiveMultiply, self).__init__(in_features, out_features, bias)
+        super(PositiveMultiply, self).__init__()
         self.register_buffer('epsilon', torch.Tensor([epsilon]))
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = Parameter(torch.ones(out_features, in_features) / in_features)
+        if bias: self.bias = Parameter(torch.zeros(out_features))
+        else: self.register_parameter('bias', None)
 
     def forward(self, input):
         "applies a linear operation in log space"

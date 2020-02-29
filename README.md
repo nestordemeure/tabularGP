@@ -4,6 +4,14 @@
 
 The aim of this repository is to make it easy to use gaussian process on tabular data within the [fastai V1 framework](https://docs.fast.ai/), experiment with various kernel types and evaluate their efficiency in this domain.
 
+## Capabilities
+
+- regression
+- classification (TODO)
+- provides a well calibrated uncertainty on the outputs
+- compute feature importance (TODO)
+- transfer learning (TODO)
+
 ## TODO
 
 ### Documentation
@@ -13,10 +21,8 @@ The aim of this repository is to make it easy to use gaussian process on tabular
 
 ### Kernel
 
-- add possibility to deactivate scaling on kernels
 - add neural network encoder kernel
 - add Weighted Product kernel
-- add universal combinator kernel
 
 ### Model
 
