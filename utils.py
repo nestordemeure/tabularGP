@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-__all__ = ['psd_safe_cholesky', 'Scale', 'soft_clamp_max', 'soft_clamp']
+__all__ = ['psd_safe_cholesky', 'Scale', 'soft_clamp_max', 'soft_clamp', 'magnitude', 'magnitude_reciprocal']
 
 def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
     """Compute the Cholesky decomposition of A. If A is only p.s.d, add a small jitter to the diagonal.
@@ -56,3 +56,11 @@ def soft_clamp(x, min_value, max_value):
     """insures that the output is in the given interval
     NOTE: this is not really a clamp"""
     return min_value + (max_value - min_value)*F.sigmoid(x)
+
+def magnitude(x):
+    "similar to log but defined on all numbers and returns the magnitude of the input"
+    return torch.sign(x) * torch.log1p(torch.abs(x))
+
+def magnitude_reciprocal(x):
+    "reciprocal of magnitude function"
+    return torch.sign(x) * (torch.exp(torch.abs(x)) - 1)

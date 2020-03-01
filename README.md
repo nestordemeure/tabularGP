@@ -32,8 +32,6 @@ Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial wi
 - add demo notebook
 - compare to neural network baselines
 
-- use magnitude fucntion on the weights (no bias ?) for the multiply module
-
 #### Kernel
 
 - add matern kernels

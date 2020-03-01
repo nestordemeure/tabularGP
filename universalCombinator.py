@@ -9,7 +9,7 @@ from torch.nn import Linear, Module, Parameter
 import torch.nn.functional as F
 import torch
 # my imports
-from utils import soft_clamp_max
+from utils import soft_clamp_max, magnitude, magnitude_reciprocal
 
 __all__ = ['PositiveLinear', 'PositiveMultiply', 'Multiply', 'Polynomial', 'PositiveProductOfSum']
 
@@ -53,14 +53,15 @@ class PositiveMultiply(Module):
         self.out_features = out_features
         self.log_maximum_output = np.log(maximum_output)
         # weights initialized to start equivalent to a geometric mean
-        self.weight = Parameter(torch.ones(out_features, in_features) / in_features)
+        self.weight = Parameter( magnitude_reciprocal(torch.ones(out_features, in_features) / in_features) )
         if bias: self.bias = Parameter(torch.zeros(out_features))
         else: self.register_parameter('bias', None)
 
     def forward(self, input):
         "applies a linear operation in log space"
+        # applies module
         log_input = torch.log(input + self.epsilon)
-        log_output = F.linear(log_input, self.weight, self.bias)
+        log_output = F.linear(log_input, magnitude(self.weight), self.bias) # magnitude forces weights to grow in log space
         log_output = soft_clamp_max(log_output, self.log_maximum_output) # insures it does not degrate into inf
         return torch.exp(log_output)
 
@@ -75,9 +76,9 @@ class Multiply(PositiveMultiply):
         input_imaginary = torch.zeros(input.shape)
         input_imaginary[input_imaginary < 0.0] = np.pi
         # applies the linear transformation in log space
-        output_real = F.linear(input_real, self.weight, self.bias)
+        output_real = F.linear(input_real, magnitude(self.weight), self.bias) # magnitude forces weights to grow in log space
         output_real = soft_clamp_max(output_real, self.log_maximum_output) # insures it does not degrade into inf
-        output_imaginary = F.linear(input_imaginary, self.weight, self.bias)
+        output_imaginary = F.linear(input_imaginary, magnitude(self.weight), self.bias)
         # gets out of log space (note that there is no sinus as we inforce a real output)
         return torch.exp(output_real) * torch.cos(output_imaginary)
 
