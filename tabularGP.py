@@ -23,21 +23,33 @@ def _euclidian_distances(row:Tensor, data:Tensor):
     "returns a vector with the euclidian distance between a row and each row of a dataset"
     return torch.sum((row.unsqueeze(dim=0) - data)**2, dim=1)
 
-def _maximalyDifferentPoints(data:Tensor, nb_cluster:int, distance_func=_hamming_distances):
-    """returns the given number of indexes such that the associated rows are as far as possible (according to hamming distance)
-     using an approximate greedy algorithm"""
+def _maximalyDifferentPoints(data_cont:Tensor, data_cat:Tensor, nb_cluster:int):
+    """
+    returns the given number of indexes such that the associated rows are as far as possible
+    according to the hamming distance between categories and, in case of equality, the euclidian distance between continuous columns
+    uses a greedy algorithm to quickly get an approximate solution
+    """
     # initialize with the first point of the dataset
     indexes = [0]
-    row = data[0, ...]
-    minimum_distances = distance_func(row, data)
+    row_cat = data_cat[0, ...]
+    minimum_distances_cat = _hamming_distances(row_cat, data_cat)
+    # we suppose that data_cont is normalized so raw euclidian distance is enough
+    row_cont = data_cont[0, ...]
+    minimum_distances_cont = _euclidian_distances(row_cont, data_cont)
     for _ in range(nb_cluster - 1):
         # finds the row that maximizes the minimum distances to the existing selections
-        index = torch.argmax(minimum_distances, dim=0)
+        # choise is done on cat distance (which has granularity 1) and, in case of equality, cont distance (normalized to be in [0;0.5])
+        distances = minimum_distances_cat + minimum_distances_cont / (2.0 * minimum_distances_cont.max())
+        index = torch.argmax(distances, dim=0)
         indexes.append(index.item())
-        # updates distances
-        row = data[index, ...]
-        distances = distance_func(row, data)
-        minimum_distances = torch.min(minimum_distances, distances)
+        # updates distances cont
+        row_cont = data_cont[index, ...]
+        distances_cont = _euclidian_distances(row_cont, data_cont)
+        minimum_distances_cont = torch.min(minimum_distances_cont, distances_cont)
+        # update distances cat
+        row_cat = data_cat[index, ...]
+        distances_cat = _hamming_distances(row_cat, data_cat)
+        minimum_distances_cat = torch.min(minimum_distances_cat, distances_cat)
     return torch.LongTensor(indexes)
 
 def _get_training_points(data:DataBunch, nb_points:int, use_random_training_points=False):
@@ -57,16 +69,9 @@ def _get_training_points(data:DataBunch, nb_points:int, use_random_training_poin
     data_cont = torch.cat(data_cont)
     data_y = torch.cat(data_y)
     # selects training points
-    if use_random_training_points:
-        print("using rando point")
-        indices = torch.arange(0, nb_points)
-    elif data_cat.size(1) > 0:
-        print("optimizing")
-        # we optimize categorial columns as continuous columns can always be optimized
-        indices = _maximalyDifferentPoints(data_cat, nb_points)
-    else:
-        print("No categorial column was detected, training point selection will be done on continuous columns.")
-        indices = _maximalyDifferentPoints(data_cont, nb_points, distance_func=_euclidian_distances)
+    if nb_points >= data_cat.size(0): return (data_cat, data_cont, data_y)
+    elif use_random_training_points: indices = torch.arange(0, nb_points)
+    else: indices = _maximalyDifferentPoints(data_cont, data_cat, nb_points)
     # assemble the training data
     data_cat = data_cat[indices, ...]
     data_cont = data_cont[indices, ...]
