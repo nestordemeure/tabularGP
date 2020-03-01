@@ -73,7 +73,7 @@ def log_standard_normal_cdf(x):
     see https://math.stackexchange.com/questions/321569/approximating-the-error-function-erf-by-analytical-functions
     and use softplus (`softplus(x) = log(1 + exp(x))`) as a way to get a numerically stable implementation
     """
-    # erfc(x) = 1 - efr(x) 
+    # erfc(x) = 1 - efr(x)
     # erfc(x) = 1 - (e - e-) / (e + e-) = 2*e- / (e + e-) = 2 / (e2 + 1)
     # erfc(x) = 2 / (1 + exp(2*k*x)) with k = sqrt(pi)*ln(2) (aproximation)
     # cdf(x) = 0.5 * erfc(-x/sqrt(2))
@@ -81,4 +81,4 @@ def log_standard_normal_cdf(x):
     # cdf(x) = 1 / (1 + exp(-ln(2)lsqrt(2*pi)*x))
     # logcdf(x) = -softplus(-ln(2)lsqrt(2*pi)*x)
     k = np.log(2) * np.sqrt(2*np.pi)
-    return  -F.softplus(-k*x)
+    return -F.softplus(-k*x)
