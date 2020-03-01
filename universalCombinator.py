@@ -124,4 +124,3 @@ class PositiveProductOfSum(Module):
         "takes the product of the weighted sum of the inputs"
         res = self.product(self.addition(input))
         return res
-

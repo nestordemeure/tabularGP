@@ -1,8 +1,9 @@
+import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
 
-__all__ = ['psd_safe_cholesky', 'Scale', 'soft_clamp_max', 'soft_clamp', 'magnitude', 'magnitude_reciprocal']
+__all__ = ['psd_safe_cholesky', 'Scale', 'soft_clamp_max', 'soft_clamp', 'magnitude', 'magnitude_reciprocal', 'log_standard_normal_cdf']
 
 def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
     """Compute the Cholesky decomposition of A. If A is only p.s.d, add a small jitter to the diagonal.
@@ -64,3 +65,20 @@ def magnitude(x):
 def magnitude_reciprocal(x):
     "reciprocal of magnitude function"
     return torch.sign(x) * (torch.exp(torch.abs(x)) - 1)
+
+def log_standard_normal_cdf(x):
+    """
+    more numerically stable way to get the logarithm of the standard normal cdf
+    we approximate the cdf with: 1 / (1 + exp(-k*x)) with k = log(2) * sqrt(2*pi)
+    see https://math.stackexchange.com/questions/321569/approximating-the-error-function-erf-by-analytical-functions
+    and use softplus (`softplus(x) = log(1 + exp(x))`) as a way to get a numerically stable implementation
+    """
+    # erfc(x) = 1 - efr(x) 
+    # erfc(x) = 1 - (e - e-) / (e + e-) = 2*e- / (e + e-) = 2 / (e2 + 1)
+    # erfc(x) = 2 / (1 + exp(2*k*x)) with k = sqrt(pi)*ln(2) (aproximation)
+    # cdf(x) = 0.5 * erfc(-x/sqrt(2))
+    # cdf(x) = 0.5 * erfc(-x/sqrt(2)) = 1 / (1 + exp(-sqrt(2)*k*x))
+    # cdf(x) = 1 / (1 + exp(-ln(2)lsqrt(2*pi)*x))
+    # logcdf(x) = -softplus(-ln(2)lsqrt(2*pi)*x)
+    k = np.log(2) * np.sqrt(2*np.pi)
+    return  -F.softplus(-k*x)

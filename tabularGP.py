@@ -7,7 +7,7 @@ import torch
 from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 # my imports
-from utils import psd_safe_cholesky
+from utils import psd_safe_cholesky, log_standard_normal_cdf
 from kernel import ProductOfSumsKernel
 
 __all__ = ['gp_gaussian_marginal_log_likelihood', 'TabularGPModel', 'tabularGP_learner']
@@ -38,9 +38,9 @@ def _maximalyDifferentPoints(data_cont:Tensor, data_cat:Tensor, nb_cluster:int):
     minimum_distances_cont = _euclidian_distances(row_cont, data_cont)
     for _ in range(nb_cluster - 1):
         # finds the row that maximizes the minimum distances to the existing selections
-        # choise is done on cat distance (which has granularity 1) and, in case of equality, cont distance (normalized to be in [0;0.5])
-        distances = minimum_distances_cat + minimum_distances_cont / (2.0 * minimum_distances_cont.max())
-        index = torch.argmax(distances, dim=0)
+        # choice is done on cat distance (which has granularity 1) and, in case of equality, cont distance (normalized to be in [0;0.5])
+        minimum_distances = minimum_distances_cat + minimum_distances_cont / (2.0 * minimum_distances_cont.max())
+        index = torch.argmax(minimum_distances, dim=0)
         indexes.append(index.item())
         # updates distances cont
         row_cont = data_cont[index, ...]
@@ -68,6 +68,9 @@ def _get_training_points(data:DataBunch, nb_points:int, use_random_training_poin
     data_cat = torch.cat(data_cat)
     data_cont = torch.cat(data_cont)
     data_y = torch.cat(data_y)
+    # transforms the output into one hot encoding if we are dealing with a classification problem
+    is_classification = hasattr(data, 'classes')
+    if is_classification: data_y = nn.functional.one_hot(data_y).float()
     # selects training points
     if nb_points >= data_cat.size(0): return (data_cat, data_cont, data_y)
     elif use_random_training_points: indices = torch.arange(0, nb_points)
@@ -87,6 +90,30 @@ def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor):
     stdev = prediction.stdev
     minus_log_likelihood = (mean - target)**2 / (2*stdev*stdev) + torch.log(stdev * np.sqrt(2.*np.pi))
     return minus_log_likelihood.mean()
+
+def gp_is_greater_log_likelihood(prediction, target:Tensor):
+    """
+    compute the log probability that the target has a greater value than the other classes
+     P(X>Y) = 0.5 * erfc(-mean / (sqrt(2)*std) )
+     mean = mean_x - mean_y
+     std² = std_x² + std_y² + 2*std_x*std_y
+     under the hypothesis that corr(x,y) = -1 meaning that when one grows the other decreases
+    for more information, see: https://math.stackexchange.com/questions/178334/the-probability-of-one-gaussian-larger-than-another
+    """
+    # gets the output distributions
+    mean = prediction
+    stdev = prediction.stdev
+    # gets the target
+    mean_target = mean[target]
+    std_target = stdev[target]
+    # computes the probability that the target is larger than another output
+    mean_sub = mean_target - mean
+    std_sub = torch.sqrt(std_target*std_target + stdev*stdev + 2.0*std_target*stdev)
+    minus_log_proba = -log_standard_normal_cdf(mean_sub / std_sub)
+    # removes the probability between the target and itself
+    minus_log_proba[target] = 0.0
+    minus_log_proba = torch.sum(minus_log_proba, dim=1)
+    return minus_log_proba.mean()
 
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
@@ -139,7 +166,7 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_trai
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # picks a loss function for the task
     is_classification = hasattr(data, 'classes')
-    if is_classification: raise Exception("tabularGP does not implement classification yet!")
+    if is_classification: loss_func = gp_is_greater_log_likelihood
     else: loss_func = gp_gaussian_marginal_log_likelihood
     # defines the model
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
