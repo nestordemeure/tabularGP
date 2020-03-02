@@ -39,12 +39,8 @@ Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial wi
 
 #### Model
 
-- explore other likelihoods for classification
+- explore other likelihoods for classification (softmax)
 - add feature importance for kernels that supports it
 - add transfer learning
-
-- do not fit classification output
-(maybe add it to the point selection categories ?)
-use mean/std with no log proba ?
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

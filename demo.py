@@ -3,7 +3,7 @@ from tabularGP import tabularGP_learner
 
 # dataset
 path = untar_data(URLs.ADULT_SAMPLE)
-df = pd.read_csv(path/'adult.csv').sample(1000)
+df = pd.read_csv(path/'adult.csv')#.sample(1000)
 procs = [FillMissing, Normalize, Categorify]
 
 #------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_n
 
 # gp model
 glearn = tabularGP_learner(dls, nb_training_points=50, metrics=accuracy)
-glearn.fit_one_cycle(10, max_lr=1e-2)
+glearn.fit_one_cycle(10, max_lr=1e-3)
 
 # classical model
 #learn = tabular_learner(dls, layers=[200,100], metrics=accuracy)

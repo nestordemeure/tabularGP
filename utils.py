@@ -82,4 +82,3 @@ def log_standard_normal_cdf(x):
     # logcdf(x) = -softplus(-ln(2)lsqrt(2*pi)*x)
     k = np.log(2) * np.sqrt(2*np.pi)
     return -F.softplus(-k*x)
-    # asymptote formulation: logcdf(x) = -0.5*x² - log(-x*sqrt(2*pi))

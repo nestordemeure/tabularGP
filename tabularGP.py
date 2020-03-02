@@ -117,19 +117,21 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor):
 
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
-    def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False, fit_training_point=True,
+    def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False, 
+                 fit_training_inputs=True, fit_training_outputs=True,
                  noise=1e-2, embedding_sizes:ListSizes=None, tabular_kernel=ProductOfSumsKernel, **kernel_kwargs):
-        "'noise' is given as a fraction of the output std"
+        """
+        'noise' is expressed as a fraction of the output std
+        We recommend setting 'fit_training_outputs' to True for regression and False for classification
+        """
         super().__init__()
         # registers training data
         train_input_cat, train_input_cont, train_outputs = _get_training_points(training_data, nb_training_points, use_random_training_points)
         self.register_buffer('train_input_cat', train_input_cat)
-        if fit_training_point:
-            self.train_input_cont = nn.Parameter(train_input_cont)
-            self.train_outputs = nn.Parameter(train_outputs)
-        else:
-            self.register_buffer('train_input_cont', train_input_cont)
-            self.register_buffer('train_outputs', train_outputs)
+        if fit_training_inputs: self.train_input_cont = nn.Parameter(train_input_cont)
+        else: self.register_buffer('train_input_cont', train_input_cont)
+        if fit_training_outputs: self.train_outputs = nn.Parameter(train_outputs)
+        else: self.register_buffer('train_outputs', train_outputs)
         # kernel and associated parameters
         output_std = train_outputs.std(dim=0)
         self.std_scale = nn.Parameter(output_std)
@@ -161,14 +163,21 @@ class TabularGPModel(nn.Module):
         mean.stdev = stdev
         return mean
 
-def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False, fit_training_point=True,
+def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False, 
+                     fit_training_inputs=True, fit_training_outputs=None,
                       noise=1e-2, embedding_sizes:ListSizes=None, tabular_kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # picks a loss function for the task
+    # and decides wetehr training the outputs would give the best results
     is_classification = hasattr(data, 'classes')
-    if is_classification: loss_func = gp_is_greater_log_likelihood
-    else: loss_func = gp_gaussian_marginal_log_likelihood
+    if is_classification:
+        fit_training_outputs = False if fit_training_outputs is None else fit_training_outputs
+        loss_func = gp_is_greater_log_likelihood
+    else:
+        fit_training_outputs = True if fit_training_outputs is None else fit_training_outputs
+        loss_func = gp_gaussian_marginal_log_likelihood
     # defines the model
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
-                           fit_training_point=fit_training_point, noise=noise, embedding_sizes=embedding_sizes, tabular_kernel=tabular_kernel)
+                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
+                           noise=noise, embedding_sizes=embedding_sizes, tabular_kernel=tabular_kernel)
     return Learner(data, model, loss_func=loss_func, **learn_kwargs)
