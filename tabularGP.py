@@ -3,6 +3,7 @@
 # source: https://github.com/nestordemeure/tabularGP/blob/master/tabularGP.py
 
 import numpy as np
+import pandas
 import torch
 from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
@@ -10,7 +11,8 @@ from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 from utils import psd_safe_cholesky, log_standard_normal_cdf
 from kernel import ProductOfSumsKernel
 
-__all__ = ['gp_gaussian_marginal_log_likelihood', 'TabularGPModel', 'tabularGP_learner']
+__all__ = ['gp_gaussian_marginal_log_likelihood', 'gp_is_greater_log_likelihood',
+           'TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
 
 #--------------------------------------------------------------------------------------------------
 # Training points selection
@@ -163,6 +165,28 @@ class TabularGPModel(nn.Module):
         mean.stdev = stdev
         return mean
 
+    @property
+    def feature_importance(self):
+        return self.kernel.feature_importance
+
+class TabularGPLearner(Learner):
+    "Learner with some TabularGPModel specific methods"
+    @property
+    def feature_importance(self):
+        "gets the feature importance for the model as a dataframe"
+        # gets feature names
+        cont_names = self.data.train_ds.x.cont_names
+        cat_names = self.data.train_ds.x.cat_names
+        feature_names = cat_names + cont_names
+        # gets importance
+        importances = self.model.feature_importance.detach().cpu()
+        return pandas.DataFrame({'Variable': feature_names, 'Importance': importances})
+    
+    def plot_feature_importance(self, kind='barh', title="feature importance", figsize=(20,15), legend=False, **plot_kwargs):
+        "produces a bar plot of the feature importance for the features, parameters are forwarded to the pandas plotting function"
+        importances = self.feature_importance.sort_values('Importance')
+        return importances.plot('Variable', 'Importance', kind=kind, title=title, figsize=figsize, legend=legend, **plot_kwargs)
+
 def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False, 
                      fit_training_inputs=True, fit_training_outputs=None,
                       noise=1e-2, embedding_sizes:ListSizes=None, tabular_kernel=ProductOfSumsKernel, **learn_kwargs):
@@ -180,4 +204,4 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_trai
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
                            fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
                            noise=noise, embedding_sizes=embedding_sizes, tabular_kernel=tabular_kernel)
-    return Learner(data, model, loss_func=loss_func, **learn_kwargs)
+    return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)

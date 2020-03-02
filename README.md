@@ -40,7 +40,6 @@ Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial wi
 #### Model
 
 - explore other likelihoods for classification (softmax)
-- add feature importance for kernels that supports it
 - add transfer learning
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

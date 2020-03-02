@@ -29,14 +29,30 @@ class SingleColumnKernel(nn.Module):
     def forward(self, x, y):
         "Computes the similarity between x and y, both being single columns."
 
+    @property
+    def feature_importance(self):
+        return torch.ones(1).to(self.device)
+
 class CategorialKernel(nn.Module):
     "Abstract class for kernels on categorial features."
     def __init__(self, embedding_sizes:ListSizes):
         super().__init__()
+        self.nb_features = len(embedding_sizes)
+        self.register_buffer('dummy', torch.empty(0))
+
+    @property
+    def device(self):
+        "uses a dummy tensor to get the current device"
+        return self.dummy.device
 
     @abc.abstractmethod
     def forward(self, x, y):
         "Computes the similarity between x and y, both being multi column categorial data."
+
+    @property
+    def feature_importance(self):
+        return torch.ones(self.nb_features).to(self.device)
+
 
 class ContinuousKernel(nn.Module):
     "Abstract class for kernels on continous features"
@@ -45,10 +61,15 @@ class ContinuousKernel(nn.Module):
         super().__init__()
         default_bandwidth = 0.9 * train_data.std(dim=0) * (train_data.size(dim=0)**-0.2)
         self.bandwidth = nn.Parameter(default_bandwidth)
+        self.nb_features = train_data.size(-1)
 
     @abc.abstractmethod
     def forward(self, x, y):
         "Computes the similarity between x and y, both being multi column continuous data."
+
+    @property
+    def feature_importance(self):
+        return torch.ones(self.nb_features).to(self.bandwidth.device)
 
 class TabularKernel(nn.Module):
     "abstract class for kernel applied to tabular data"
@@ -58,6 +79,10 @@ class TabularKernel(nn.Module):
     @abc.abstractmethod
     def forward(self, x, y):
         "Computes the similarity between x and y, both being tuple of the form (cat,cont)."
+
+    @property
+    def feature_importance(self):
+        raise Exception("The current tabular kernel does not implement feature importance.")
 
     def matrix(self, x, y):
         "Utilitary function that computes the matrix of all combinaison of kernel(x_i,y_j)"
@@ -99,6 +124,16 @@ class IndexKernelSingle(SingleColumnKernel):
         # evaluate the covariace matrix for our pairs of categories
         return covariance[x, y]
 
+    @property
+    def feature_importance(self):
+        # uses the factors to build the covariance matrix
+        covar_factor = self.sqrt_covar_factor * self.sqrt_covar_factor
+        covariance = torch.mm(covar_factor, covar_factor.t())
+        covariance.diagonal().add_(self.std*self.std)
+        # the importance is the mean of the diagonal
+        importance = covariance.diagonal().mean()
+        return importance
+
 class IndexKernel(CategorialKernel):
     """
     default kernel on categories
@@ -111,6 +146,11 @@ class IndexKernel(CategorialKernel):
     def forward(self, x, y):
         covariances = [cov(x[...,i],y[...,i]) for i,cov in enumerate(self.cat_covs)]
         return torch.stack(covariances, dim=-1)
+
+    @property
+    def feature_importance(self):
+        importances = [cov.feature_importance for cov in self.cat_covs]
+        return torch.stack(importances)
 
 class HammingKernel(CategorialKernel):
     "trivial kernel on categories"
@@ -181,6 +221,13 @@ class WeightedSumKernel(TabularKernel):
         covariance = torch.sum(self.scale(covariances), dim=-1)
         return covariance
 
+    @property
+    def feature_importance(self):
+        imp_cat = self.cat_kernel.feature_importance
+        imp_cont = self.cont_kernel.feature_importance
+        importances = self.scale(torch.cat([imp_cat, imp_cont], dim=-1))
+        return importances
+
 class WeightedProductKernel(TabularKernel):
     "Learns a weighted geometric average of the covariances for all the columns"
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
@@ -198,6 +245,20 @@ class WeightedProductKernel(TabularKernel):
         covariance = self.combinator(covariances).squeeze(dim=-1)
         return covariance
 
+    @property
+    def feature_importance(self):
+        # collect individual feature importances
+        imp_cat = self.cat_kernel.feature_importance
+        imp_cont = self.cont_kernel.feature_importance
+        importances = torch.cat([imp_cat, imp_cont], dim=-1)
+        # value with feature minus importances without feature
+        baseline_importance = self.combinator(importances)
+        nb_features = importances.size(0)
+        importances = importances.repeat(nb_features, 1)
+        importances.fill_diagonal_(0.0)
+        importances = baseline_importance - self.combinator(importances)
+        return importances.squeeze()
+
 class ProductOfSumsKernel(TabularKernel):
     "Learns an arbitrary weighted geometric average of the sum of the covariances for all the columns."
     def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
@@ -214,6 +275,20 @@ class ProductOfSumsKernel(TabularKernel):
         covariances = torch.cat((self.cont_kernel(x_cont, y_cont), self.cat_kernel(x_cat, y_cat)), dim=-1)
         covariance = self.combinator(covariances).squeeze(dim=-1)
         return covariance
+
+    @property
+    def feature_importance(self):
+        # collect individual feature importances
+        imp_cat = self.cat_kernel.feature_importance
+        imp_cont = self.cont_kernel.feature_importance
+        importances = torch.cat([imp_cat, imp_cont], dim=-1)
+        # value with feature minus importances without feature
+        baseline_importance = self.combinator(importances)
+        nb_features = importances.size(0)
+        importances = importances.repeat(nb_features, 1)
+        importances.fill_diagonal_(0.0)
+        importances = baseline_importance - self.combinator(importances)
+        return importances.squeeze()
 
 class NeuralKernel(TabularKernel):
     "Uses a neural network to learn an embedding for the inputs. The covariance between two inputs is their cosinus similarity."
