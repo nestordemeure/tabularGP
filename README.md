@@ -4,21 +4,19 @@ The aim of this repository is to make it easy to use gaussian process on tabular
 
 If you are a gaussian process expert, you might be better served by [gpytorch](https://gpytorch.ai/) as our focus is on accesibility and out-of-the-box experiences rather than exhaustivity and flexibility.
 
-**WARNING: this is a work in progress that is still very incomplete (see our TODO list).**
-
 ## Features
 
 - regression on one or more targets
 - classification
 - uncertainty on the outputs
-- feature importance estimation (TODO)
+- feature importance estimation
 - transfer-learning to recycle models (TODO)
 - various kernels including a neural-network based kernel
 - naturally resistant to overfitting
 
 ## Notes
 
-A learning rate of about `1e-1` seems like a good default.
+A learning rate within  `[1e-2;1e-1]` seems like a good default.
 
 The loss can sometimes decrease while the error is slightly increasing, this is due to the model fighting overfitting and improving its calibration.
 
