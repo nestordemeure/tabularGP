@@ -126,18 +126,45 @@ class HammingKernel(CategorialKernel):
 #--------------------------------------------------------------------------------------------------
 # continuous kernels
 
-class RBFKernel(ContinuousKernel):
+class GaussianKernel(ContinuousKernel):
     "Default, gaussian, kernel"
     def forward(self, x, y):
         covariance = torch.exp( -(x - y)**2 / (2 * self.bandwidth * self.bandwidth).unsqueeze(dim=0) )
         return covariance
+
+class ExponentialKernel(ContinuousKernel):
+    "Exponential kernel (matern 1/2), zero differentiable"
+    def forward(self, x, y):
+        covariance = torch.exp(-torch.abs(x - y) / self.bandwidth)
+        return covariance
+
+class Matern1Kernel(ContinuousKernel):
+    "Matern 3/2 kernel, once differentiable"
+    def forward(self, x, y):
+        d = torch.abs(x - y)
+        term = np.sqrt(3) * d / self.bandwidth
+        covariance = (1 + term) * torch.exp(-term)
+        return covariance
+
+class Matern2Kernel(ContinuousKernel):
+    "Matern 5/2 kernel, twice differentiable"
+    def forward(self, x, y):
+        d = torch.abs(x - y)
+        term = np.sqrt(5) * d / self.bandwidth
+        covariance = (1 + term + term*term/3) * torch.exp(-term)
+        return covariance
+
+# aliases for various kernel
+RBFKernel = GaussianKernel
+MaternInfinityKernel = GaussianKernel
+Matern0Kernel = ExponentialKernel
 
 #--------------------------------------------------------------------------------------------------
 # tabular kernels
 
 class WeightedSumKernel(TabularKernel):
     "Minimal kernel for tabular data, sums the covariances for all the columns"
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
         super().__init__(train_cont, train_cat, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)
@@ -156,7 +183,7 @@ class WeightedSumKernel(TabularKernel):
 
 class WeightedProductKernel(TabularKernel):
     "Learns a weighted geometric average of the covariances for all the columns"
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
         super().__init__(train_cont, train_cat, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)
@@ -173,7 +200,7 @@ class WeightedProductKernel(TabularKernel):
 
 class ProductOfSumsKernel(TabularKernel):
     "Learns an arbitrary weighted geometric average of the sum of the covariances for all the columns."
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=RBFKernel, cat_kernel=IndexKernel):
+    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
         super().__init__(train_cont, train_cat, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)

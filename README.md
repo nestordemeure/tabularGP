@@ -34,7 +34,6 @@ Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial wi
 
 #### Kernel
 
-- add matern kernels
 - add a date/time specific kernel
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
 
@@ -43,5 +42,9 @@ Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial wi
 - explore other likelihoods for classification
 - add feature importance for kernels that supports it
 - add transfer learning
+
+- do not fit classification output
+(maybe add it to the point selection categories ?)
+use mean/std with no log proba ?
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*
