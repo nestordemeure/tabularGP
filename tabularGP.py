@@ -155,14 +155,14 @@ class TabularGPModel(nn.Module):
         # predicted std
         var_noise = (self.std_noise * self.std_noise).unsqueeze(dim=0)
         std_scale = torch.abs(self.std_scale).unsqueeze(dim=0)
-        covar = (diag_cov_test_test - torch.sum(L_test**2, dim=0)).clamp_min(0.0).unsqueeze(dim=1) # clamp against negative variance
-        stdev = torch.sqrt(covar + var_noise) * std_scale
+        covar = (diag_cov_test_test - torch.sum(L_test**2, dim=0)).abs().unsqueeze(dim=1) # abs against negative variance
+        stdev = torch.sqrt(covar + var_noise) * std_scale + 1e-10 # epsilon to insure we are strictly above 0
         # adds std as an additional member to the mean
-        mean.stdev = stdev.clamp(1e-10) # clamp to insure we are strictly above 0
+        mean.stdev = stdev
         return mean
 
 def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False, fit_training_point=True,
-                      noise=1e-2, embedding_sizes:ListSizes=None, metrics=None, **learn_kwargs):
+                      noise=1e-2, embedding_sizes:ListSizes=None, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # picks a loss function for the task
     is_classification = hasattr(data, 'classes')
@@ -171,4 +171,4 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_trai
     # defines the model
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
                            fit_training_point=fit_training_point, noise=noise, embedding_sizes=embedding_sizes)
-    return Learner(data, model, metrics=metrics, loss_func=loss_func, **learn_kwargs)
+    return Learner(data, model, loss_func=loss_func, **learn_kwargs)

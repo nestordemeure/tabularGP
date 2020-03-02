@@ -9,7 +9,7 @@ If you are a gaussian process expert, you might be better served by [gpytorch](h
 ## Features
 
 - regression on one or more targets
-- classification (TODO)
+- classification
 - uncertainty on the outputs
 - feature importance estimation (TODO)
 - transfer-learning to recycle models (TODO)
@@ -40,7 +40,7 @@ Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial wi
 
 #### Model
 
-- add classification
+- explore other likelihoods for classification
 - add feature importance for kernels that supports it
 - add transfer learning
 
