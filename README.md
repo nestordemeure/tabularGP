@@ -17,14 +17,20 @@ glearn.plot_feature_importance()
 
 ## Features
 
-- regression on one or more targets
-- classification
-- uncertainty on the outputs
-- feature importance estimation
-- transfer-learning to recycle models (TODO)
-- various kernels including a neural-network based kernel
+Some features of gaussian process:
+- gives an uncertainty on the outputs
 - naturally resistant to overfitting
 - very accurate for small datasets
+
+Some features of this particular implementation:
+- works out of the box on tabular datasets
+- can be used on large datasets
+- lets use optimise the gaussian process's training data
+- cover regression on one or more targets and classification
+- feature importance estimation
+- transfer-learning to recycle models (TODO)
+- implements various kernels including a neural-network based kernel
+- implements various priors including the possibility of using arbitrary functions such as a neural-network as prior
 
 ## Notes
 
@@ -50,19 +56,13 @@ Singular matrix errors might happend due to numerical problems.
 
 #### Kernel
 
-- accept pretrained kernel as input
-- add a date/time specific kernel
+- add a date/time specific kernel (periodic kernel)
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
-
-#### Prior
-
-- accept pretrained prior as input
 
 #### Model
 
 - explore other likelihoods for classification (softmax)
 - add transfer learning (pretrained_model, freeze/unfreeze training data/kernel)
-- add prior (zero, constant, linear, neural network)
 - add active learning to select training points
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

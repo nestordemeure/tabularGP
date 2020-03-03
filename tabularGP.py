@@ -141,8 +141,8 @@ class TabularGPModel(nn.Module):
         self.std_scale = nn.Parameter(output_std)
         self.std_noise = nn.Parameter(output_std * noise)
         embedding_sizes = training_data.get_emb_szs(ifnone(embedding_sizes, {}))
-        self.kernel = tabular_kernel(train_input_cont, train_input_cat, embedding_sizes, **kernel_kwargs)
-        self.prior = prior(train_input_cat, train_input_cont, train_outputs, embedding_sizes)
+        self.kernel = tabular_kernel(train_input_cont, train_input_cat, embedding_sizes, **kernel_kwargs) if isinstance(tabular_kernel,type) else tabular_kernel
+        self.prior = prior(train_input_cat, train_input_cont, train_outputs, embedding_sizes) if isinstance(prior,type) else prior
 
     def forward(self, x_cat:Tensor, x_cont:Tensor):
         # covariance between combinaisons of samples
