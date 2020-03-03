@@ -169,7 +169,7 @@ class HammingKernel(CategorialKernel):
 class GaussianKernel(ContinuousKernel):
     "Default, gaussian, kernel"
     def forward(self, x, y):
-        covariance = torch.exp( -(x - y)**2 / (2 * self.bandwidth * self.bandwidth).unsqueeze(dim=0) )
+        covariance = torch.exp( -(x - y)**2 / (2 * self.bandwidth * self.bandwidth) )
         return covariance
 
 class ExponentialKernel(ContinuousKernel):
