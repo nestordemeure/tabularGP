@@ -57,9 +57,6 @@ Singular matrix errors might happend due to numerical problems.
 #### Prior
 
 - accept pretrained prior as input
-- take x_cat into account in linear prior
-- pretrain linear prior
-- add neural network prior ? (a pretrained classical tabular model is technically a valid prior)
 
 #### Model
 

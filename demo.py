@@ -3,7 +3,7 @@ from tabularGP import tabularGP_learner
 
 # dataset
 path = untar_data(URLs.ADULT_SAMPLE)
-df = pd.read_csv(path/'adult.csv').sample(1000)
+df = pd.read_csv(path/'adult.csv')#.sample(1000)
 procs = [FillMissing, Normalize, Categorify]
 
 #------------------------------------------------------------------------------
