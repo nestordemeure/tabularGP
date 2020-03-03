@@ -1,6 +1,6 @@
 # Kernels
 # Kernels for gaussian process based models
-# a kernel can be seen as a fucntion computing the similarity between two inputs
+# a kernel can be seen as a function computing the similarity between two inputs
 # source: https://github.com/nestordemeure/tabularGP/blob/master/kernel.py
 
 import abc

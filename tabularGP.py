@@ -10,6 +10,7 @@ from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 # my imports
 from utils import psd_safe_cholesky, log_standard_normal_cdf
 from kernel import ProductOfSumsKernel
+from prior import ConstantPrior, LinearPrior
 
 __all__ = ['gp_gaussian_marginal_log_likelihood', 'gp_is_greater_log_likelihood',
            'TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
@@ -119,8 +120,8 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor):
 
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
-    def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False, 
-                 fit_training_inputs=True, fit_training_outputs=True,
+    def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
+                 fit_training_inputs=True, fit_training_outputs=True, prior=ConstantPrior,
                  noise=1e-2, embedding_sizes:ListSizes=None, tabular_kernel=ProductOfSumsKernel, **kernel_kwargs):
         """
         'noise' is expressed as a fraction of the output std
@@ -140,7 +141,7 @@ class TabularGPModel(nn.Module):
         self.std_noise = nn.Parameter(output_std * noise)
         embedding_sizes = training_data.get_emb_szs(ifnone(embedding_sizes, {}))
         self.kernel = tabular_kernel(train_input_cont, train_input_cat, embedding_sizes, **kernel_kwargs)
-        self.prior = nn.Parameter(train_outputs.mean(dim=0)) # constant prior
+        self.prior = prior(train_input_cat, train_input_cont, train_outputs)
 
     def forward(self, x_cat:Tensor, x_cont:Tensor):
         # covariance between combinaisons of samples
@@ -151,11 +152,11 @@ class TabularGPModel(nn.Module):
         L_train_train = psd_safe_cholesky(cov_train_train)
         (L_test, _) = torch.triangular_solve(cov_train_test, L_train_train, upper=False)
         # outputs for the training data with prior correction
-        train_outputs = self.train_outputs - self.prior
+        train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
         if train_outputs.dim() == 1: train_outputs = train_outputs.unsqueeze(dim=-1) # deals with 1D outputs
         # predicted mean
         (output_to_weight, _) = torch.triangular_solve(train_outputs, L_train_train, upper=False)
-        mean = torch.mm(L_test.t(), output_to_weight) + self.prior
+        mean = torch.mm(L_test.t(), output_to_weight) + self.prior(x_cat, x_cont)
         # predicted std
         var_noise = self.std_noise * self.std_noise
         std_scale = self.std_scale.abs()
@@ -187,8 +188,8 @@ class TabularGPLearner(Learner):
         importances = self.feature_importance.sort_values('Importance')
         return importances.plot('Variable', 'Importance', kind=kind, title=title, figsize=figsize, legend=legend, **plot_kwargs)
 
-def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False, 
-                     fit_training_inputs=True, fit_training_outputs=None,
+def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
+                     fit_training_inputs=True, fit_training_outputs=None, prior=LinearPrior,
                       noise=1e-2, embedding_sizes:ListSizes=None, tabular_kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # picks a loss function for the task
@@ -202,6 +203,6 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_trai
         loss_func = gp_gaussian_marginal_log_likelihood
     # defines the model
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
-                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
+                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs, prior=prior,
                            noise=noise, embedding_sizes=embedding_sizes, tabular_kernel=tabular_kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
