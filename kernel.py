@@ -73,7 +73,7 @@ class ContinuousKernel(nn.Module):
 
 class TabularKernel(nn.Module):
     "abstract class for kernel applied to tabular data"
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes):
+    def __init__(self, train_cat, train_cont, embedding_sizes:ListSizes):
         super().__init__()
 
     @abc.abstractmethod
@@ -204,8 +204,8 @@ Matern0Kernel = ExponentialKernel
 
 class WeightedSumKernel(TabularKernel):
     "Minimal kernel for tabular data, sums the covariances for all the columns"
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
-        super().__init__(train_cont, train_cat, embedding_sizes)
+    def __init__(self, train_cat, train_cont, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
+        super().__init__(train_cat, train_cont, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)
         nb_features = train_cont.size(1) + train_cat.size(1)
@@ -230,8 +230,8 @@ class WeightedSumKernel(TabularKernel):
 
 class WeightedProductKernel(TabularKernel):
     "Learns a weighted geometric average of the covariances for all the columns"
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
-        super().__init__(train_cont, train_cat, embedding_sizes)
+    def __init__(self, train_cat, train_cont, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
+        super().__init__(train_cat, train_cont, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)
         nb_features = train_cont.size(1) + train_cat.size(1)
@@ -261,8 +261,8 @@ class WeightedProductKernel(TabularKernel):
 
 class ProductOfSumsKernel(TabularKernel):
     "Learns an arbitrary weighted geometric average of the sum of the covariances for all the columns."
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
-        super().__init__(train_cont, train_cat, embedding_sizes)
+    def __init__(self, train_cat, train_cont, embedding_sizes:ListSizes, cont_kernel=GaussianKernel, cat_kernel=IndexKernel):
+        super().__init__(train_cat, train_cont, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)
         nb_features = train_cont.size(1) + train_cat.size(1)
@@ -292,8 +292,8 @@ class ProductOfSumsKernel(TabularKernel):
 
 class NeuralKernel(TabularKernel):
     "Uses a neural network to learn an embedding for the inputs. The covariance between two inputs is their cosinus similarity."
-    def __init__(self, train_cont, train_cat, embedding_sizes:ListSizes, neural_embedding_size:int=20, layers=[200,100], **neuralnetwork_kwargs):
-        super().__init__(train_cont, train_cat, embedding_sizes)
+    def __init__(self, train_cat, train_cont, embedding_sizes:ListSizes, neural_embedding_size:int=20, layers=[200,100], **neuralnetwork_kwargs):
+        super().__init__(train_cat, train_cont, embedding_sizes)
         self.encoder = TabularModel(emb_szs=embedding_sizes, n_cont=train_cont.size(-1), out_sz=neural_embedding_size, layers=layers, y_range=None, **neuralnetwork_kwargs)
         self.scale = Scale(neural_embedding_size)
 
