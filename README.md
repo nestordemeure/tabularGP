@@ -28,7 +28,7 @@ Some features of this particular implementation:
 - lets use optimise the gaussian process's training data
 - cover regression on one or more targets and classification
 - feature importance estimation
-- transfer-learning to recycle models (TODO)
+- transfer-learning to recycle models
 - implements various kernels including a neural-network based kernel
 - implements various priors including the possibility of using arbitrary functions such as a neural-network as prior
 
@@ -58,11 +58,11 @@ Singular matrix errors might happend due to numerical problems.
 
 - add a date/time specific kernel (periodic kernel)
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
+- validate kernel inputs on transfert learning (otherwise it might crash or silently misbehave if the user uses a dataset with different column types)
 
 #### Model
 
 - explore other likelihoods for classification (softmax)
-- add transfer learning (pretrained_model, freeze/unfreeze training data/kernel)
 - add active learning to select training points
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

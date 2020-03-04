@@ -19,10 +19,19 @@ dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_n
                   .databunch(bs=63))
 
 # gp model
-glearn = tabularGP_learner(dls, nb_training_points=50, metrics=accuracy)
+glearnc = tabularGP_learner(dls, nb_training_points=50, metrics=accuracy)
+glearnc.fit_one_cycle(10, max_lr=1e-3)
+
+# feature importance
+glearnc.plot_feature_importance()
+
+# transfer learning on kernel
+glearn = tabularGP_learner(dls, kernel=glearnc, nb_training_points=50, metrics=accuracy)
 glearn.fit_one_cycle(10, max_lr=1e-3)
 
-glearn.plot_feature_importance()
+# transfer learning on prior
+glearn = tabularGP_learner(dls, prior=glearnc, nb_training_points=50, metrics=accuracy)
+glearn.fit_one_cycle(10, max_lr=1e-3)
 
 # classical model
 #learn = tabular_learner(dls, layers=[200,100], metrics=accuracy)
