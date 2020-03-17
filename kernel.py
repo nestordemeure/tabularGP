@@ -14,7 +14,8 @@ from utils import Scale
 from universalCombinator import PositiveMultiply, PositiveProductOfSum
 
 __all__ = ['CategorialKernel', 'ContinuousKernel', 'TabularKernel',
-           'IndexKernelSingle', 'IndexKernel', 'HammingKernel', 'RBFKernel',
+           'IndexKernelSingle', 'IndexKernel', 'HammingKernel',
+           'GaussianKernel', 'ExponentialKernel', 'Matern1Kernel', 'Matern2Kernel', 'RBFKernel', 'MaternInfinityKernel', 'Matern0Kernel',
            'WeightedSumKernel', 'WeightedProductKernel', 'ProductOfSumsKernel', 'NeuralKernel']
 
 #--------------------------------------------------------------------------------------------------
