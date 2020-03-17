@@ -13,10 +13,12 @@ __all__ = ['select_trainset']
 
 def _hamming_distances(row:Tensor, data:Tensor):
     "returns a vector with the hamming distance between a row and each row of a dataset"
+    if row.dim() == 0: return Tensor([0.0]).to(row.device) # deals with absence of categorial features
     return (row.unsqueeze(dim=0) != data).sum(dim=1)
 
 def _euclidian_distances(row:Tensor, data:Tensor):
     "returns a vector with the euclidian distance between a row and each row of a dataset"
+    if row.dim() == 0: return Tensor([0.0]).to(row.device) # deals with absence of continuous features
     return torch.sum((row.unsqueeze(dim=0) - data)**2, dim=1)
 
 #--------------------------------------------------------------------------------------------------

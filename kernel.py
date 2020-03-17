@@ -91,13 +91,21 @@ class TabularKernel(nn.Module):
         # cat
         nb_x_cat_elements = x_cat.size(0)
         nb_y_cat_elements = y_cat.size(0)
-        cat_element_size = x_cat.size(1)
+        cat_element_size = x_cat.size(1) if x_cat.dim() > 1 else 0
+        if cat_element_size == 0: 
+            # deals with the case where the is no cat feature
+            x_cat = x_cat.unsqueeze(-1)
+            y_cat = y_cat.unsqueeze(-1)
         x_cat = x_cat.unsqueeze(1).expand(nb_x_cat_elements, nb_y_cat_elements, cat_element_size)
         y_cat = y_cat.unsqueeze(0).expand(nb_x_cat_elements, nb_y_cat_elements, cat_element_size)
         # cont
         nb_x_cont_elements = x_cont.size(0)
         nb_y_cont_elements = y_cont.size(0)
-        cont_element_size = x_cont.size(1)
+        cont_element_size = x_cont.size(1) if x_cont.dim() > 1 else 0
+        if cont_element_size == 0: 
+            # deals with the case where the is no cont feature
+            x_cont = x_cont.unsqueeze(-1)
+            y_cont = y_cont.unsqueeze(-1)
         x_cont = x_cont.unsqueeze(1).expand(nb_x_cont_elements, nb_y_cont_elements, cont_element_size)
         y_cont = y_cont.unsqueeze(0).expand(nb_x_cont_elements, nb_y_cont_elements, cont_element_size)
         # covariance computation
@@ -145,11 +153,13 @@ class IndexKernel(CategorialKernel):
 
     def forward(self, x, y):
         covariances = [cov(x[...,i],y[...,i]) for i,cov in enumerate(self.cat_covs)]
+        if len(covariances) == 0: return torch.Tensor([]).to(x.device)
         return torch.stack(covariances, dim=-1)
 
     @property
     def feature_importance(self):
         importances = [cov.feature_importance for cov in self.cat_covs]
+        if len(importances) == 0: return torch.Tensor([])
         return torch.stack(importances)
 
 class HammingKernel(CategorialKernel):
@@ -208,8 +218,9 @@ class WeightedSumKernel(TabularKernel):
         super().__init__(train_cat, train_cont, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)
-        nb_features = train_cont.size(1) + train_cat.size(1)
-        self.scale = Scale(nb_features)
+        nb_cat_features = train_cat.size(1) if train_cat.dim() > 1 else 0
+        nb_cont_features = train_cont.size(1) if train_cont.dim() > 1 else 0
+        self.scale = Scale(nb_cat_features+nb_cont_features)
 
     def forward(self, x, y):
         "returns a tensor with one similarity per pair (x_i,y_i) of batch element"
@@ -234,8 +245,9 @@ class WeightedProductKernel(TabularKernel):
         super().__init__(train_cat, train_cont, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)
-        nb_features = train_cont.size(1) + train_cat.size(1)
-        self.combinator = PositiveMultiply(in_features=nb_features, out_features=1, bias=False)
+        nb_cat_features = train_cat.size(1) if train_cat.dim() > 1 else 0
+        nb_cont_features = train_cont.size(1) if train_cont.dim() > 1 else 0
+        self.combinator = PositiveMultiply(in_features=nb_cat_features+nb_cont_features, out_features=1, bias=False)
 
     def forward(self, x, y):
         "returns a tensor with one similarity per pair (x_i,y_i) of batch element"
@@ -265,8 +277,9 @@ class ProductOfSumsKernel(TabularKernel):
         super().__init__(train_cat, train_cont, embedding_sizes)
         self.cont_kernel = cont_kernel(train_cont)
         self.cat_kernel = cat_kernel(embedding_sizes)
-        nb_features = train_cont.size(1) + train_cat.size(1)
-        self.combinator = PositiveProductOfSum(in_features=nb_features, out_features=1)
+        nb_cat_features = train_cat.size(1) if train_cat.dim() > 1 else 0
+        nb_cont_features = train_cont.size(1) if train_cont.dim() > 1 else 0
+        self.combinator = PositiveProductOfSum(in_features=nb_cat_features+nb_cont_features, out_features=1)
 
     def forward(self, x, y):
         "returns a tensor with one similarity per pair (x_i,y_i) of batch element"

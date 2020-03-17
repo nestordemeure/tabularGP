@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -6,6 +5,52 @@ import torch.nn.functional as F
 __all__ = ['psd_safe_cholesky', 'Scale',
           'soft_clamp_max', 'soft_clamp', 'magnitude', 'magnitude_reciprocal',
           'freeze', 'unfreeze']
+
+#--------------------------------------------------------------------------------------------------
+# Mathematical functions
+
+def soft_clamp_max(x, max_value):
+    "clamp_max but differentiable"
+    return x - F.softplus(x - max_value)
+
+def soft_clamp(x, min_value, max_value):
+    """insures that the output is in the given interval
+    NOTE: this is not really a clamp"""
+    return min_value + (max_value - min_value)*F.sigmoid(x)
+
+def magnitude(x):
+    "similar to log but defined on all numbers and returns the magnitude of the input"
+    return torch.sign(x) * torch.log1p(torch.abs(x))
+
+def magnitude_reciprocal(x):
+    "reciprocal of magnitude function"
+    return torch.sign(x) * (torch.exp(torch.abs(x)) - 1)
+
+#--------------------------------------------------------------------------------------------------
+# Modules
+
+class Scale(nn.Module):
+    "scales the input with positive weights"
+    def __init__(self, nb_features:int):
+        super().__init__()
+        self.sqrt_scale = nn.Parameter(torch.ones(nb_features))
+
+    def forward(self, x):
+        scale = self.sqrt_scale * self.sqrt_scale
+        return scale * x
+
+def freeze(model):
+    "freezes a model"
+    for parameter in model.parameters():
+        parameter.requires_grad = False
+
+def unfreeze(model):
+    "unfreezes a model"
+    for parameter in model.parameters():
+        parameter.requires_grad = True
+
+#--------------------------------------------------------------------------------------------------
+# Linear algebra
 
 def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
     """Compute the Cholesky decomposition of A. If A is only p.s.d, add a small jitter to the diagonal.
@@ -40,40 +85,3 @@ def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
             except RuntimeError:
                 continue
         raise e
-
-class Scale(nn.Module):
-    "scales the input with positive weights"
-    def __init__(self, nb_features:int):
-        super().__init__()
-        self.sqrt_scale = nn.Parameter(torch.ones(nb_features))
-
-    def forward(self, x):
-        scale = self.sqrt_scale * self.sqrt_scale
-        return scale * x
-
-def soft_clamp_max(x, max_value):
-    "clamp_max but differentiable"
-    return x - F.softplus(x - max_value)
-
-def soft_clamp(x, min_value, max_value):
-    """insures that the output is in the given interval
-    NOTE: this is not really a clamp"""
-    return min_value + (max_value - min_value)*F.sigmoid(x)
-
-def magnitude(x):
-    "similar to log but defined on all numbers and returns the magnitude of the input"
-    return torch.sign(x) * torch.log1p(torch.abs(x))
-
-def magnitude_reciprocal(x):
-    "reciprocal of magnitude function"
-    return torch.sign(x) * (torch.exp(torch.abs(x)) - 1)
-
-def freeze(model):
-    "freezes a model"
-    for parameter in model.parameters():
-        parameter.requires_grad = False
-
-def unfreeze(model):
-    "unfreezes a model"
-    for parameter in model.parameters():
-        parameter.requires_grad = True

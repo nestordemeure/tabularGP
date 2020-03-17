@@ -50,15 +50,15 @@ Singular matrix errors might happend due to numerical problems.
 
 #### Various
 
+- improve readme
 - add usage example to readme
 - add demo notebook
-- compare to neural network baselines
+- submit to pip ?
 
 #### Kernel
 
 - add a date/time specific kernel (periodic kernel)
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
-- validate kernel inputs on transfert learning (otherwise it might crash or silently misbehave if the user uses a dataset with different column types)
 
 #### Model
 
