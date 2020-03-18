@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-__all__ = ['psd_safe_cholesky', 'Scale',
+__all__ = ['psd_safe_cholesky', 'warm_approximate_cholesky', 'Scale',
           'soft_clamp_max', 'soft_clamp', 'magnitude', 'magnitude_reciprocal',
           'freeze', 'unfreeze']
 
@@ -70,9 +70,7 @@ def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
         L = torch.cholesky(A, upper=upper, out=out)
         return L
     except RuntimeError as e:
-        if jitter is None:
-            jitter = 1e-6 if A.dtype == torch.float32 else 1e-8
-            #jitter = 1e-4 if A.dtype == torch.float32 else 1e-6
+        if jitter is None: jitter = 1e-6 if A.dtype == torch.float32 else 1e-8
         Aprime = A.clone()
         jitter_prev = 0
         for i in range(10):
@@ -81,8 +79,22 @@ def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
             jitter_prev = jitter_new
             try:
                 L = torch.cholesky(Aprime, upper=upper, out=out)
-                #warnings.warn(f"A not p.d., added jitter of {jitter_new} to the diagonal", RuntimeWarning)
                 return L
             except RuntimeError:
                 continue
         raise e
+
+# TODO we might build fast explicit backward function
+# TODO there is a loss of matter with the current implementation
+def warm_approximate_cholesky(A, L, upper=False):
+    "suppose that upper is False"
+    nb_iter = 3
+    alpha = 1.0 - 0.5**(1/nb_iter)
+    for i in range(nb_iter):
+        # solve L*X = A, we want X=transpose(L)
+        L_transp, _ = torch.triangular_solve(A, L, upper=upper)
+        if torch.any(torch.isnan(L_transp)):
+            print("warm failed", i)
+            return psd_safe_cholesky(A, upper=upper)
+        else: L = torch.lerp(L, L_transp.t(), alpha)
+    return L
