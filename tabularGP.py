@@ -123,7 +123,7 @@ class TabularGPModel(nn.Module):
             train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
             # solves linear system
             X0 = self._output_weights if self._output_weights is None else self._output_weights.detach()
-            self._output_weights = cg(self._cov_train_train, train_outputs, X0=X0) #cov_train_train^-1 * train_outputs
+            self._output_weights = CG(self._cov_train_train, X0=X0)(train_outputs) #cov_train_train^-1 * train_outputs
         return self._cov_train_train, self._output_weights
 
     def forward(self, x_cat:Tensor, x_cont:Tensor):

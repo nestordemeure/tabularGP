@@ -88,15 +88,16 @@ def cg(A, B, M_bmm=None, X0=None, rtol=1e-3, atol=0., maxiter=None):
 
 class CG(torch.autograd.Function):
 
-    def __init__(self, A, M_bmm=None, rtol=1e-3, atol=0., maxiter=None):
+    def __init__(self, A, M_bmm=None, X0=None, rtol=1e-3, atol=0., maxiter=None):
         self.A = A
         self.M_bmm = M_bmm
+        self.X0 = X0
         self.rtol = rtol
         self.atol = atol
         self.maxiter = maxiter
 
-    def forward(self, B, X0=None):
-        return cg(self.A, B, M_bmm=self.M_bmm, X0=X0, rtol=self.rtol, atol=self.atol, maxiter=self.maxiter)
+    def forward(self, B):
+        return cg(self.A, B, M_bmm=self.M_bmm, X0=self.X0, rtol=self.rtol, atol=self.atol, maxiter=self.maxiter)
 
     def backward(self, dX):
         return cg(self.A, dX, M_bmm=self.M_bmm, rtol=self.rtol, atol=self.atol, maxiter=self.maxiter)
