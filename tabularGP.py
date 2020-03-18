@@ -52,8 +52,9 @@ class TabularGPModel(nn.Module):
         if (self._L_train_train is None) or (self.training):
             # covariance between training samples
             cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
-            if self._L_train_train is None: self._L_train_train = psd_safe_cholesky(cov_train_train)
-            else: self._L_train_train = warm_approximate_cholesky(cov_train_train, self._L_train_train.detach()) # TODO we might want to start cold on first eval
+            self._L_train_train = psd_safe_cholesky(cov_train_train)
+            #if self._L_train_train is None: self._L_train_train = psd_safe_cholesky(cov_train_train)
+            #else: self._L_train_train = warm_approximate_cholesky(cov_train_train, self._L_train_train.detach()) # TODO we might want to start cold on first eval
             # outputs for the training data with prior correction
             train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
             # weights for the predicted mean
