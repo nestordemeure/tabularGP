@@ -1,13 +1,20 @@
 # Tabular GP
 
-The aim of this repository is to make it easy to use gaussian process on tabular data with an implementation built on top of the [fastai V1 framework](https://docs.fast.ai/).
+The aim of this repository is to make it easy to use gaussian process on tabular data with an implementation built on top of [pytorch](https://pytorch.org/) and the [fastai V1 framework](https://docs.fast.ai/).
+
+Gaussian process have three main properties that makes them of particular interest:
+- they are very accurate, and tend to outperform deep neural network, on small datasets (5000 points or less)
+- they gives an uncertainty estimate on their outputs
+- they are naturally resistant to overfitting
 
 If you are a gaussian process expert, you might be better served by [gpytorch](https://gpytorch.ai/) as our focus is on accesibility and out-of-the-box experiences rather than exhaustivity and flexibility.
 
 ## Usage
 
+Our API was built to be compatible with [fastai V1's tabular models](https://docs.fast.ai/tabular.html) and should be familiar to fastai's users:
+
 ```python
-# train a learner on a classification task
+# train a learner on a classification task using a subset of 50 points
 learn = tabularGP_learner(data, nb_training_points=50, metrics=accuracy)
 learn.fit_one_cycle(10, max_lr=1e-3)
 
@@ -15,45 +22,28 @@ learn.fit_one_cycle(10, max_lr=1e-3)
 glearn.plot_feature_importance()
 ```
 
-## Features
-
-Some features of gaussian process:
-- gives an uncertainty on the outputs
-- naturally resistant to overfitting
-- very accurate for small datasets
-
-Some features of this particular implementation:
-- works out of the box on tabular datasets
-- can be used on large datasets
-- lets use optimise the gaussian process's training data
-- cover regression on one or more targets and classification
-- feature importance estimation
-- transfer-learning to recycle models
-- implements various kernels including a neural-network based kernel
-- implements various priors including the possibility of using arbitrary functions such as a neural-network as prior
+For a tour of the features available (including various forms of transfer-learning and feature importance estimation), see the [example folder](TODO).
 
 ## Notes
 
-A learning rate within  `[1e-2;1e-1]` seems like a good default.
+The gaussian process output a tensor, its prediction (the *mean* of the gaussian process), with an additional `stdev` member to get the uncertainty on the prediction.
 
-The loss can sometimes decrease while the error is slightly increasing, this is due to the model fighting overfitting and improving its calibration.
+Some inputs might lead to crash due to singular matrices appearing during the kernel computation.
+The easiest solution to those problems is to restart the model with a lower learning rate (adding training points can also help).
 
-Using SGD instead of Adam (`opt_func=optim.SGD`) is sometimes very beneficial with this kind of model but it can also lead to numerically unstable situations.
+We provide two loss functions out of the box (`gp_gaussian_marginal_log_likelihood` for regression and `gp_is_greater_log_likelihood` for classification). Any user-defined loss function should take both mean and std into account to insure a proper fit.
 
-We provide two loss functions, other loss should take the mean *and* std into account.
-
-The output has an std.
-
-Singular matrix errors might happend due to numerical problems.
+One might observe that a validation metric increases while the loss steadily decreases.
+This is due to the model improving its uncertainty estimate to the detriment of its prediction.
 
 ## TODO
 
 #### Various
 
-- improve readme
 - add usage example to readme
 - add demo notebook
-- submit to pip ?
+- submit to pip
+- add a DOI for ease of quote in papers
 
 #### Kernel
 
@@ -63,5 +53,7 @@ Singular matrix errors might happend due to numerical problems.
 #### Model
 
 - explore other likelihoods for classification (softmax)
+- explore the use of a conjugate gradient instead of the cholesky decomposition to speed-up the forward pass
+- stores forward values to avoid recomputing decompositions during the evaluation pass
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

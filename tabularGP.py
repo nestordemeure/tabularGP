@@ -11,7 +11,7 @@ from fastprogress.fastprogress import progress_bar
 from loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood
 from utils import psd_safe_cholesky, freeze, unfreeze
 from kernel import ProductOfSumsKernel, TabularKernel
-from trainset_selection import select_trainset, get_worst_element
+from trainset_selection import select_trainset
 from prior import ConstantPrior
 
 __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
@@ -122,43 +122,6 @@ class TabularGPLearner(Learner):
             unfreeze(self.model.std_noise)
         self.create_opt(1e-3)
 
-    def active_learning(self, nb_epoch=1):
-        """
-        takes a model with a trained kernel and tries to find a better subset of points
-        by using the points that are the least likely according to the model
-        useful when the model uses only a fraction of the points
-        """
-        self.model.eval()
-        with torch.no_grad():
-            nb_elements = self.model.train_outputs.size(0)
-            for e in progress_bar(range(nb_epoch*nb_elements), leave=False):
-                i = e % nb_elements
-                # finds the point with the worst loss
-                (worst_cat, worst_cont, worst_y) = get_worst_element(self.model, self.data.train_dl, self.loss_func) # TODO test rmse as loss
-                # replace the ith point
-                self.model.train_input_cat[i, ...] = worst_cat
-                self.model.train_input_cont[i, ...] = worst_cont
-                self.model.train_outputs[i, ...] = worst_y # TODO might require one hot encoding when using categories
-
-    def active_learning2(self, nb_points=1):
-        """
-        takes a model with a trained kernel and adds a given number of points from the training set
-        adds the points that are the least likely according to the model
-        useful when the model can use only a fraction of the points
-        """
-        self.model.eval()
-        with torch.no_grad():
-            for _ in progress_bar(range(nb_points), leave=False):
-                # finds the point with the worst loss
-                (worst_cat, worst_cont, worst_y) = get_worst_element(self.model, self.data.train_dl, self.loss_func)
-                if worst_y.dim() == 0: worst_y = worst_y.unsqueeze(0)
-                # adds it to the model
-                self.model.train_input_cat = torch.cat([self.model.train_input_cat, worst_cat.unsqueeze(0)])
-                self.model.train_input_cont = torch.cat([self.model.train_input_cont, worst_cont.unsqueeze(0)])
-                self.model.train_outputs = torch.cat([self.model.train_outputs, worst_y.unsqueeze(0)])
-                # TODO output might require one hot encoding when using categories
-                # TODO we might not respect the fact that those are parameters and buffers
-
 #--------------------------------------------------------------------------------------------------
 # Constructor
 
@@ -190,3 +153,10 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_trai
                            fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs, prior=prior,
                            noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
+
+def tabularGP_classic_learner(data:DataBunch, nb_training_points:int=5000, use_random_training_points=False,
+                              prior=ConstantPrior, noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
+    "Builds a `TabularGPModel` model that acts as a traditional gaussian process and outputs a `Learner` that encapsulate the model and the associated data"
+    return tabularGP_learner(data=data, 
+                      nb_training_points=nb_training_points, use_random_training_points=False, fit_training_inputs=False, fit_training_outputs=False,
+                      prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel, **learn_kwargs)
