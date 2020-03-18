@@ -63,6 +63,5 @@ Singular matrix errors might happend due to numerical problems.
 #### Model
 
 - explore other likelihoods for classification (softmax)
-- add active learning to select training points
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

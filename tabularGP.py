@@ -6,11 +6,12 @@ import pandas
 import torch
 from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
+from fastprogress.fastprogress import progress_bar
 # my imports
 from loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood
 from utils import psd_safe_cholesky, freeze, unfreeze
 from kernel import ProductOfSumsKernel, TabularKernel
-from trainset_selection import select_trainset
+from trainset_selection import select_trainset, get_worst_element
 from prior import ConstantPrior
 
 __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
@@ -120,6 +121,24 @@ class TabularGPLearner(Learner):
             unfreeze(self.model.std_scale)
             unfreeze(self.model.std_noise)
         self.create_opt(1e-3)
+
+    def active_learning(self, nb_epoch=1):
+        """
+        takes a model with a trained kernel and tries to find a better subset of points
+        by using the points that are the least likely according to the model
+        useful when the model uses only a fraction of the points
+        """
+        self.model.eval()
+        with torch.no_grad():
+            nb_elements = self.model.train_outputs.size(0)
+            for e in progress_bar(range(nb_epoch*nb_elements), leave=False):
+                i = e % nb_elements
+                # finds the point with the worst loss
+                (worst_cat, worst_cont, worst_y) = get_worst_element(self.model, self.data.train_dl, self.loss_func)
+                # replace the ith point
+                self.model.train_input_cat[i, ...] = worst_cat
+                self.model.train_input_cont[i, ...] = worst_cont
+                self.model.train_outputs[i, ...] = worst_y # TODO might require one hot encoding when using categories
 
 #--------------------------------------------------------------------------------------------------
 # Constructor

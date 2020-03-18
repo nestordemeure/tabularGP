@@ -25,14 +25,17 @@ def log_standard_normal_cdf(x):
     k = np.log(2) * np.sqrt(2*np.pi)
     return -torch.nn.functional.softplus(-k*x)
 
-def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor):
+def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor, reduction='mean'):
     "loss function for a regression gaussian process"
+    if target.dim() == 1: target = target.unsqueeze(-1)
     mean = prediction
     stdev = prediction.stdev
     minus_log_likelihood = (mean - target)**2 / (2*stdev*stdev) + torch.log(stdev * np.sqrt(2.*np.pi))
-    return minus_log_likelihood.mean()
+    if reduction == 'mean': return minus_log_likelihood.mean()
+    elif reduction == 'sum': return minus_log_likelihood.sum()
+    else: return minus_log_likelihood
 
-def gp_is_greater_log_likelihood(prediction, target:Tensor):
+def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
     """
     compute the log probability that the target has a greater value than the other classes
      P(X>Y) = 0.5 * erfc(-mean / (sqrt(2)*std) )
@@ -54,4 +57,6 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor):
     # removes the probability between the target and itself
     minus_log_proba[target] = 0.0
     minus_log_proba = torch.sum(minus_log_proba, dim=1)
-    return minus_log_proba.mean()
+    if reduction == 'mean': return minus_log_proba.mean()
+    elif reduction == 'sum': return minus_log_proba.sum()
+    else: return minus_log_proba

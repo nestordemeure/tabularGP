@@ -6,7 +6,7 @@ from torch import Tensor, nn
 import torch
 from fastai.tabular import DataBunch
 
-__all__ = ['select_trainset']
+__all__ = ['trainset_of_databunch', 'select_trainset', 'get_worst_element']
 
 #--------------------------------------------------------------------------------------------------
 # Distance metric
@@ -53,8 +53,8 @@ def _maximalyDifferentPoints(data_cont:Tensor, data_cat:Tensor, nb_cluster:int):
         minimum_distances_cat = torch.min(minimum_distances_cat, distances_cat)
     return torch.LongTensor(indexes)
 
-def select_trainset(data:DataBunch, nb_points:int, use_random_training_points=False):
-    "gets a (cat,cont,y) tuple with the given number of elements"
+def trainset_of_databunch(data:DataBunch):
+    "takes a databunch and returns a (cat,cont,y) tuple"
     # extracts all the dataset as a single tensor
     data_cat = []
     data_cont = []
@@ -72,6 +72,12 @@ def select_trainset(data:DataBunch, nb_points:int, use_random_training_points=Fa
     # transforms the output into one hot encoding if we are dealing with a classification problem
     is_classification = hasattr(data, 'classes')
     if is_classification: data_y = nn.functional.one_hot(data_y).float()
+    return (data_cat, data_cont, data_y)
+
+def select_trainset(data:DataBunch, nb_points:int, use_random_training_points=False):
+    "gets a (cat,cont,y) tuple with the given number of elements"
+    # extracts all the dataset as tensors
+    (data_cat, data_cont, data_y) = trainset_of_databunch(data)
     # selects training points
     if nb_points >= data_cat.size(0): return (data_cat, data_cont, data_y)
     elif use_random_training_points: indices = torch.arange(0, nb_points)
@@ -81,3 +87,16 @@ def select_trainset(data:DataBunch, nb_points:int, use_random_training_points=Fa
     data_cont = data_cont[indices, ...]
     data_y = data_y[indices, ...]
     return (data_cat, data_cont, data_y)
+
+def get_worst_element(model, dl, loss_func):
+    "gets the element, from the given dataloader, with the maximum loss"
+    max_loss = None
+    max_element = None
+    for (xcat,xcont),y in dl:
+        out = model(xcat,xcont)
+        loss = loss_func(out, y, reduction=None).squeeze()
+        id_worst_batch_element = torch.argmax(loss)
+        if (max_loss is None) or (loss[id_worst_batch_element] > max_loss):
+            max_loss = loss[id_worst_batch_element]
+            max_element = xcat[id_worst_batch_element, ...], xcont[id_worst_batch_element, ...], y[id_worst_batch_element, ...]
+    return max_element

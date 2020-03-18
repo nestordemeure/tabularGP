@@ -72,6 +72,7 @@ def psd_safe_cholesky(A, upper=False, out=None, jitter=None):
     except RuntimeError as e:
         if jitter is None:
             jitter = 1e-6 if A.dtype == torch.float32 else 1e-8
+            #jitter = 1e-4 if A.dtype == torch.float32 else 1e-6
         Aprime = A.clone()
         jitter_prev = 0
         for i in range(10):
