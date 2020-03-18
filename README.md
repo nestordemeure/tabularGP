@@ -41,7 +41,7 @@ This is due to the model improving its uncertainty estimate to the detriment of 
 #### Various
 
 - add usage example to readme
-- add demo notebook
+- make example folder covering basic usage, feature importance, transfer learning, kernel selection
 - submit to pip
 - add a DOI for ease of quote in papers
 
@@ -54,6 +54,5 @@ This is due to the model improving its uncertainty estimate to the detriment of 
 
 - explore other likelihoods for classification (softmax)
 - explore the use of a conjugate gradient instead of the cholesky decomposition to speed-up the forward pass
-- stores forward values to avoid recomputing decompositions during the evaluation pass
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

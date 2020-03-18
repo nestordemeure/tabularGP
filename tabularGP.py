@@ -44,20 +44,31 @@ class TabularGPModel(nn.Module):
         embedding_sizes = training_data.get_emb_szs(ifnone(embedding_sizes, {}))
         self.kernel = kernel(train_input_cat, train_input_cont, embedding_sizes, **kernel_kwargs) if isinstance(kernel,type) else kernel
         self.prior = prior(train_input_cat, train_input_cont, train_outputs, embedding_sizes) if isinstance(prior,type) else prior
+        # precomputed cholesky decomposition
+        self._L_train_train = None
+        self._output_weights = None
+
+    def memoized_cholesky_decomposition(self):
+        "memoize the cholesky decomposition to avoid recomputing it when we are not training"
+        if (self._L_train_train is None) or (self.training):
+            # covariance between training samples
+            cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
+            self._L_train_train = psd_safe_cholesky(cov_train_train)
+            # outputs for the training data with prior correction
+            train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
+            # weights for the predicted mean
+            self._output_weights, _ = torch.triangular_solve(train_outputs, self._L_train_train, upper=False)
+        return self._L_train_train, self._output_weights
 
     def forward(self, x_cat:Tensor, x_cont:Tensor):
         # covariance between combinaisons of samples
-        cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
         cov_train_test = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (x_cat, x_cont))
         diag_cov_test_test = self.kernel((x_cat, x_cont), (x_cat, x_cont))
         # cholesky decompositions (accelerate solving of linear systems)
-        L_train_train = psd_safe_cholesky(cov_train_train)
+        L_train_train, output_weights = self.memoized_cholesky_decomposition()
         (L_test, _) = torch.triangular_solve(cov_train_test, L_train_train, upper=False)
-        # outputs for the training data with prior correction
-        train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
         # predicted mean
-        (output_to_weight, _) = torch.triangular_solve(train_outputs, L_train_train, upper=False)
-        mean = torch.mm(L_test.t(), output_to_weight) + self.prior(x_cat, x_cont)
+        mean = torch.mm(L_test.t(), output_weights) + self.prior(x_cat, x_cont)
         # predicted std
         var_noise = self.std_noise * self.std_noise
         std_scale = self.std_scale.abs()
