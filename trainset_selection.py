@@ -95,7 +95,7 @@ def get_worst_element(model, dl, loss_func):
     for (xcat,xcont),y in dl:
         out = model(xcat,xcont)
         loss = loss_func(out, y, reduction=None).squeeze()
-        id_worst_batch_element = torch.argmax(loss)
+        id_worst_batch_element = torch.argmin(loss)
         if (max_loss is None) or (loss[id_worst_batch_element] > max_loss):
             max_loss = loss[id_worst_batch_element]
             max_element = xcat[id_worst_batch_element, ...], xcont[id_worst_batch_element, ...], y[id_worst_batch_element, ...]

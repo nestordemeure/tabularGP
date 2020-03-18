@@ -134,11 +134,30 @@ class TabularGPLearner(Learner):
             for e in progress_bar(range(nb_epoch*nb_elements), leave=False):
                 i = e % nb_elements
                 # finds the point with the worst loss
-                (worst_cat, worst_cont, worst_y) = get_worst_element(self.model, self.data.train_dl, self.loss_func)
+                (worst_cat, worst_cont, worst_y) = get_worst_element(self.model, self.data.train_dl, self.loss_func) # TODO test rmse as loss
                 # replace the ith point
                 self.model.train_input_cat[i, ...] = worst_cat
                 self.model.train_input_cont[i, ...] = worst_cont
                 self.model.train_outputs[i, ...] = worst_y # TODO might require one hot encoding when using categories
+
+    def active_learning2(self, nb_points=1):
+        """
+        takes a model with a trained kernel and adds a given number of points from the training set
+        adds the points that are the least likely according to the model
+        useful when the model can use only a fraction of the points
+        """
+        self.model.eval()
+        with torch.no_grad():
+            for _ in progress_bar(range(nb_points), leave=False):
+                # finds the point with the worst loss
+                (worst_cat, worst_cont, worst_y) = get_worst_element(self.model, self.data.train_dl, self.loss_func)
+                if worst_y.dim() == 0: worst_y = worst_y.unsqueeze(0)
+                # adds it to the model
+                self.model.train_input_cat = torch.cat([self.model.train_input_cat, worst_cat.unsqueeze(0)])
+                self.model.train_input_cont = torch.cat([self.model.train_input_cont, worst_cont.unsqueeze(0)])
+                self.model.train_outputs = torch.cat([self.model.train_outputs, worst_y.unsqueeze(0)])
+                # TODO output might require one hot encoding when using categories
+                # TODO we might not respect the fact that those are parameters and buffers
 
 #--------------------------------------------------------------------------------------------------
 # Constructor

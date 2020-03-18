@@ -20,11 +20,13 @@ dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_n
                   .databunch())
 
 # gp model
-glearn = tabularGP_learner(dls, nb_training_points=50, metrics=[rmse, mae], fit_training_inputs=False, fit_training_outputs=False)
+glearn = tabularGP_learner(dls, nb_training_points=50, metrics=[rmse, mae])
 glearn.fit_one_cycle(1, max_lr=1e-1)
 
 # active learning to improve the set of points used
-glearn.active_learning(nb_epoch=1)
+glearn = tabularGP_learner(dls, nb_training_points=10, metrics=[rmse, mae], fit_training_inputs=False, fit_training_outputs=False)
+glearn.fit_one_cycle(1, max_lr=1e-1)
+glearn.active_learning2(nb_points=40)
 glearn.fit_one_cycle(1, max_lr=1e-1)
 
 # classical model
