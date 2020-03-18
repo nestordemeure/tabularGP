@@ -6,7 +6,6 @@ import pandas
 import torch
 from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
-from cg_batch import *
 # my imports
 from loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood
 from utils import psd_safe_cholesky, freeze, unfreeze
@@ -19,7 +18,7 @@ __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
 #--------------------------------------------------------------------------------------------------
 # Model
 
-class TabularGPModel_cholesky(nn.Module):
+class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
     def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
                  fit_training_inputs=True, fit_training_outputs=True, prior=ConstantPrior,
@@ -73,72 +72,6 @@ class TabularGPModel_cholesky(nn.Module):
         var_noise = self.std_noise * self.std_noise
         std_scale = self.std_scale.abs()
         covar = (diag_cov_test_test - torch.sum(L_test**2, dim=0)).abs().unsqueeze(dim=1) # abs against negative variance
-        stdev = torch.sqrt(covar + var_noise) * std_scale + 1e-10 # epsilon to insure we are strictly above 0
-        # adds std as an additional member to the mean
-        mean.stdev = stdev
-        return mean
-
-    @property
-    def feature_importance(self):
-        return self.kernel.feature_importance
-
-#--------------------------------------------------------------------------------------------------
-# Conjugate Gradient
-
-class TabularGPModel(nn.Module):
-    "Gaussian process based model for tabular data."
-    def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
-                 fit_training_inputs=True, fit_training_outputs=True, prior=ConstantPrior,
-                 noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **kernel_kwargs):
-        """
-        'noise' is expressed as a fraction of the output std
-        We recommend setting 'fit_training_outputs' to True for regression and False for classification
-        """
-        super().__init__()
-        # registers training data
-        train_input_cat, train_input_cont, train_outputs = select_trainset(training_data, nb_training_points, use_random_training_points)
-        if train_outputs.dim() == 1: train_outputs = train_outputs.unsqueeze(dim=-1) # deals with 1D outputs
-        self.register_buffer('train_input_cat', train_input_cat)
-        if fit_training_inputs: self.train_input_cont = nn.Parameter(train_input_cont)
-        else: self.register_buffer('train_input_cont', train_input_cont)
-        if fit_training_outputs: self.train_outputs = nn.Parameter(train_outputs)
-        else: self.register_buffer('train_outputs', train_outputs)
-        # kernel and associated parameters
-        output_std = train_outputs.std(dim=0)
-        self.std_scale = nn.Parameter(output_std)
-        self.std_noise = nn.Parameter(output_std * noise)
-        embedding_sizes = training_data.get_emb_szs(ifnone(embedding_sizes, {}))
-        self.kernel = kernel(train_input_cat, train_input_cont, embedding_sizes, **kernel_kwargs) if isinstance(kernel,type) else kernel
-        self.prior = prior(train_input_cat, train_input_cont, train_outputs, embedding_sizes) if isinstance(prior,type) else prior
-        # precomputed first cg solve
-        self._cov_train_train = None
-        self._output_weights = None
-
-    def memoized_cg_solve(self):
-        "memoize the cholesky decomposition to avoid recomputing it when we are not training"
-        if (self._cov_train_train is None) or (self.training):
-            # covariance between training samples
-            self._cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
-            # weighted output values
-            train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
-            # solves linear system
-            X0 = self._output_weights if self._output_weights is None else self._output_weights.detach()
-            self._output_weights = CG(self._cov_train_train, X0=X0)(train_outputs) #cov_train_train^-1 * train_outputs
-        return self._cov_train_train, self._output_weights
-
-    def forward(self, x_cat:Tensor, x_cont:Tensor):
-        # covariance between combinaisons of samples
-        cov_test_train = self.kernel.matrix((x_cat, x_cont), (self.train_input_cat, self.train_input_cont))
-        diag_cov_test_test = self.kernel((x_cat, x_cont), (x_cat, x_cont))
-        # predicted mean
-        cov_train_train, output_weights = self.memoized_cg_solve()
-        mean = torch.mm(cov_test_train, output_weights) + self.prior(x_cat, x_cont)
-        # predicted std
-        covar_weights = CG(cov_train_train)(cov_test_train.t()) # L^-1 * K^t
-        covar = diag_cov_test_test - torch.mm(cov_test_train, covar_weights).diagonal()
-        covar = covar.abs().unsqueeze(dim=1) # abs against negative variance
-        var_noise = self.std_noise * self.std_noise
-        std_scale = self.std_scale.abs()
         stdev = torch.sqrt(covar + var_noise) * std_scale + 1e-10 # epsilon to insure we are strictly above 0
         # adds std as an additional member to the mean
         mean.stdev = stdev

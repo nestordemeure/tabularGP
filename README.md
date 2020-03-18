@@ -53,6 +53,5 @@ This is due to the model improving its uncertainty estimate to the detriment of 
 #### Model
 
 - explore other likelihoods for classification (softmax)
-- explore the use of a conjugate gradient instead of the cholesky decomposition to speed-up the forward pass
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*
