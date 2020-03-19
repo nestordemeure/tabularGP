@@ -35,22 +35,6 @@ class PositiveLinear(Linear):
             bias = self.bias if self.bias is None else self.bias * self.bias
         return F.linear(input, weight, bias)
 
-class PositiveSquareLinear(Module):
-    "PositiveLinear but initialized with the identity matrix as we know there are as many inputs as outputs"
-    __constants__ = ['use_exponential']
-
-    def __init__(self, nb_features, alpha=1e-6, use_exponential=False):
-        "by default, positivity is enforced with a square, if you only care about the magnitude of the parameter, set `use_exponential` to true to use an exponential instead"
-        super().__init__()
-        self.use_exponential = use_exponential
-        self.weight = Parameter( magnitude_reciprocal(((1.0 - alpha)*torch.eye(nb_features) + alpha) / nb_features) )
-
-    def forward(self, input):
-        "uses either an exponential or a square to insure that weights are positive"
-        if self.use_exponential: weight = torch.exp(self.weight)
-        else: weight = self.weight * self.weight
-        return F.linear(input, weight, None)
-
 # Introduces a block that can learn the product of its inputs raised to arbitrary powers.
 # We provide a positive version and a general version that can also take negative inputs. 
 # When possible the positive version is recommended as it is faster and trains better (no discontinuity along negative inputs).
@@ -133,9 +117,7 @@ class PositiveProductOfSum(Module):
         self.in_features = in_features
         self.out_features = out_features
         self.nb_sums = in_features if nb_sums is None else nb_sums
-        if in_features == self.nb_sums: self.addition = PositiveSquareLinear(in_features, use_exponential=False)
-        else: self.addition = PositiveLinear(in_features, self.nb_sums, bias=False, use_exponential=False)
-        # self.addition = PositiveLinear(in_features, self.nb_sums, bias=False, use_exponential=False)
+        self.addition = PositiveLinear(in_features, self.nb_sums, bias=False, use_exponential=False)
         self.product = PositiveMultiply(self.nb_sums, out_features, bias=True, epsilon=epsilon, maximum_output=maximum_output)
 
     def forward(self, input):
