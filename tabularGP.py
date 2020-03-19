@@ -8,7 +8,7 @@ from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 # my imports
 from loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood
-from utils import recycling_cholesky, freeze, unfreeze
+from utils import psd_safe_cholesky, freeze, unfreeze
 from kernel import ProductOfSumsKernel, TabularKernel
 from trainset_selection import select_trainset
 from prior import ConstantPrior
@@ -21,7 +21,7 @@ __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
     def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
-                 fit_training_inputs=True, fit_training_outputs=True, recycle_cholesky=True, prior=ConstantPrior,
+                 fit_training_inputs=True, fit_training_outputs=True, prior=ConstantPrior,
                  noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **kernel_kwargs):
         """
         'noise' is expressed as a fraction of the output std
@@ -44,17 +44,15 @@ class TabularGPModel(nn.Module):
         self.kernel = kernel(train_input_cat, train_input_cont, embedding_sizes, **kernel_kwargs) if isinstance(kernel,type) else kernel
         self.prior = prior(train_input_cat, train_input_cont, train_outputs, embedding_sizes) if isinstance(prior,type) else prior
         # precomputed cholesky decomposition
-        self.recycle_cholesky = recycle_cholesky
         self._L_train_train = None
         self._output_weights = None
 
     def memoized_cholesky_decomposition(self):
         "memoize the cholesky decomposition to avoid recomputing it when we are not training"
-        if (self._L_train_train is None) or (self.training) or (self._L_train_train.is_recycled):
+        if (self._L_train_train is None) or (self.training):
             # covariance between training samples
             cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
-            force_chol_recomputation = (not self.recycle_cholesky) or (not self.training) # recompute if asked or at evaluation time
-            self._L_train_train = recycling_cholesky(cov_train_train, self._L_train_train, force_computation=force_chol_recomputation)
+            self._L_train_train = psd_safe_cholesky(cov_train_train).detach() # we drop the gradient for the cholesky decomposition
             # outputs for the training data with prior correction
             train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
             # weights for the predicted mean
@@ -138,7 +136,7 @@ class TabularGPLearner(Learner):
 # Constructor
 
 def tabularGP_learner(data:DataBunch, nb_training_points:int=4000, use_random_training_points=False,
-                     fit_training_inputs=False, fit_training_outputs=False, recycle_cholesky=False, prior=ConstantPrior,
+                     fit_training_inputs=False, fit_training_outputs=False, prior=ConstantPrior,
                      noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
@@ -158,6 +156,6 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=4000, use_random_tr
         freeze(prior) # freezes prior when doing transfer learning
     # defines the model
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
-                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs, recycle_cholesky=recycle_cholesky,
+                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
                            prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
