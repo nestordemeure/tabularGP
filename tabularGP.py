@@ -21,7 +21,7 @@ __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
     def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
-                 fit_training_inputs=True, fit_training_outputs=True, prior=ConstantPrior,
+                 fit_training_inputs=True, fit_training_outputs=True, recycle_cholesky=True, prior=ConstantPrior,
                  noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **kernel_kwargs):
         """
         'noise' is expressed as a fraction of the output std
@@ -44,6 +44,7 @@ class TabularGPModel(nn.Module):
         self.kernel = kernel(train_input_cat, train_input_cont, embedding_sizes, **kernel_kwargs) if isinstance(kernel,type) else kernel
         self.prior = prior(train_input_cat, train_input_cont, train_outputs, embedding_sizes) if isinstance(prior,type) else prior
         # precomputed cholesky decomposition
+        self.recycle_cholesky = recycle_cholesky
         self._L_train_train = None
         self._output_weights = None
 
@@ -52,7 +53,8 @@ class TabularGPModel(nn.Module):
         if (self._L_train_train is None) or (self.training) or (self._L_train_train.is_recycled):
             # covariance between training samples
             cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
-            self._L_train_train = recycling_cholesky(cov_train_train, self._L_train_train, force_computation=not self.training)
+            force_chol_recomputation = (not self.recycle_cholesky) or (not self.training) # recompute if asked or at evaluation time
+            self._L_train_train = recycling_cholesky(cov_train_train, self._L_train_train, force_computation=force_chol_recomputation)
             # outputs for the training data with prior correction
             train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
             # weights for the predicted mean
@@ -136,7 +138,7 @@ class TabularGPLearner(Learner):
 # Constructor
 
 def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
-                     fit_training_inputs=True, fit_training_outputs=None, prior=ConstantPrior,
+                     fit_training_inputs=True, fit_training_outputs=None, recycle_cholesky=True, prior=ConstantPrior,
                      noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
@@ -160,13 +162,13 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_trai
         freeze(prior) # freezes prior when doing transfer learning
     # defines the model
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
-                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs, prior=prior,
-                           noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
+                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs, recycle_cholesky=recycle_cholesky,
+                           prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
 
-def tabularGP_classic_learner(data:DataBunch, nb_training_points:int=5000, use_random_training_points=False,
+def tabularGP_classic_learner(data:DataBunch, nb_training_points:int=5000, use_random_training_points=False, recycle_cholesky=True,
                               prior=ConstantPrior, noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model that acts as a traditional gaussian process and outputs a `Learner` that encapsulate the model and the associated data"
-    return tabularGP_learner(data=data, 
-                      nb_training_points=nb_training_points, use_random_training_points=False, fit_training_inputs=False, fit_training_outputs=False,
-                      prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel, **learn_kwargs)
+    return tabularGP_learner(data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
+                             recycle_cholesky=recycle_cholesky, fit_training_inputs=False, fit_training_outputs=False, prior=prior,
+                             noise=noise, embedding_sizes=embedding_sizes, kernel=kernel, **learn_kwargs)
