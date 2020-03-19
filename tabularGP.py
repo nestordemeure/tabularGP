@@ -166,7 +166,7 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_trai
                            prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
 
-def tabularGP_classic_learner(data:DataBunch, nb_training_points:int=5000, use_random_training_points=False, recycle_cholesky=True,
+def tabularGP_classic_learner(data:DataBunch, nb_training_points:int=5000, use_random_training_points=False, recycle_cholesky=False,
                               prior=ConstantPrior, noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model that acts as a traditional gaussian process and outputs a `Learner` that encapsulate the model and the associated data"
     return tabularGP_learner(data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
