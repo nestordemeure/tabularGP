@@ -137,19 +137,15 @@ class TabularGPLearner(Learner):
 #--------------------------------------------------------------------------------------------------
 # Constructor
 
-def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
-                     fit_training_inputs=True, fit_training_outputs=None, recycle_cholesky=True, prior=ConstantPrior,
+def tabularGP_learner(data:DataBunch, nb_training_points:int=4000, use_random_training_points=False,
+                     fit_training_inputs=False, fit_training_outputs=False, recycle_cholesky=False, prior=ConstantPrior,
                      noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
     # also decides whethere training the outputs would give the best results
     is_classification = hasattr(data, 'classes')
-    if is_classification:
-        fit_training_outputs = False if fit_training_outputs is None else fit_training_outputs
-        loss_func = gp_is_greater_log_likelihood
-    else:
-        fit_training_outputs = True if fit_training_outputs is None else fit_training_outputs
-        loss_func = gp_gaussian_marginal_log_likelihood
+    if is_classification: loss_func = gp_is_greater_log_likelihood
+    else: loss_func = gp_gaussian_marginal_log_likelihood
     # kernel
     if not isinstance(kernel, type):
         if isinstance(kernel, TabularGPLearner): kernel = kernel.model.kernel
@@ -165,10 +161,3 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=50, use_random_trai
                            fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs, recycle_cholesky=recycle_cholesky,
                            prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
-
-def tabularGP_classic_learner(data:DataBunch, nb_training_points:int=5000, use_random_training_points=False, recycle_cholesky=False,
-                              prior=ConstantPrior, noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
-    "Builds a `TabularGPModel` model that acts as a traditional gaussian process and outputs a `Learner` that encapsulate the model and the associated data"
-    return tabularGP_learner(data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
-                             recycle_cholesky=recycle_cholesky, fit_training_inputs=False, fit_training_outputs=False, prior=prior,
-                             noise=noise, embedding_sizes=embedding_sizes, kernel=kernel, **learn_kwargs)
