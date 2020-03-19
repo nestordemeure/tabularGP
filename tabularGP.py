@@ -8,7 +8,7 @@ from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 # my imports
 from loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood
-from utils import psd_safe_cholesky, freeze, unfreeze, warm_approximate_cholesky
+from utils import recycling_cholesky, freeze, unfreeze
 from kernel import ProductOfSumsKernel, TabularKernel
 from trainset_selection import select_trainset
 from prior import ConstantPrior
@@ -49,12 +49,10 @@ class TabularGPModel(nn.Module):
 
     def memoized_cholesky_decomposition(self):
         "memoize the cholesky decomposition to avoid recomputing it when we are not training"
-        if (self._L_train_train is None) or (self.training):
+        if (self._L_train_train is None) or (self.training) or (self._L_train_train.is_recycled):
             # covariance between training samples
             cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
-            self._L_train_train = psd_safe_cholesky(cov_train_train)
-            #if self._L_train_train is None: self._L_train_train = psd_safe_cholesky(cov_train_train)
-            #else: self._L_train_train = warm_approximate_cholesky(cov_train_train, self._L_train_train.detach()) # TODO we might want to start cold on first eval
+            self._L_train_train = recycling_cholesky(cov_train_train, self._L_train_train, force_computation=not self.training)
             # outputs for the training data with prior correction
             train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
             # weights for the predicted mean

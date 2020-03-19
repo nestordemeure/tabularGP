@@ -3,7 +3,7 @@ from tabularGP import tabularGP_learner
 
 # dataset
 path = untar_data(URLs.ADULT_SAMPLE)
-df = pd.read_csv(path/'adult.csv').sample(4000)
+df = pd.read_csv(path/'adult.csv').sample(1000)
 procs = [FillMissing, Normalize, Categorify]
 
 #------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ dls = (TabularList.from_df(df, path=path, cat_names=cat_names, cont_names=cont_n
                   .databunch())
 
 # gp model
-glearn = tabularGP_learner(dls, nb_training_points=4000, metrics=[rmse, mae])
+glearn = tabularGP_learner(dls, nb_training_points=50, metrics=[rmse, mae], fit_training_inputs=False, fit_training_outputs=False)
 glearn.fit_one_cycle(5, max_lr=1e-1)
 
 # active learning to improve the set of points used
