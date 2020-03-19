@@ -106,37 +106,38 @@ def _compute_residual(A, L, upper=False):
     A2 = torch.mm(L.t(),L) if upper else torch.mm(L,L.t())
     return ((A - A2)**2).mean().item()
 
-# def recycling_cholesky(A, L=None, tol=10.0, force_computation=False, upper=False):
-#     """
-#     performs the cholesky decomposition only if its MSE is larger than 1+tol time the MSE when we last truly did a cholesky decomposition
-#     the idea is that if A only barely changed then the previous decomposition is still accurate enough
-#     """
-#     original_residual = L.previous_residual if not L is None else np.nan
-#     threshold = original_residual * (1.0 + tol)
-#     new_residual = _compute_residual(A, L, upper) if not L is None else np.nan
-#     if force_computation or (L is None) or (new_residual > threshold):
-#         # refresh cholesky decomposition
-#         L = psd_safe_cholesky(A, upper=upper).detach()
-#         L.previous_residual = _compute_residual(A, L, upper)
-#         L.is_recycled = False
-#     else:
-#         # recycle cholesky decomposition
-#         #L = L.detach()
-#         L.previous_residual = original_residual
-#         L.is_recycled = True
-#     return L
-
 def recycling_cholesky(A, L=None, tol=10.0, force_computation=False, upper=False):
     """
     performs the cholesky decomposition only if its MSE is larger than 1+tol time the MSE when we last truly did a cholesky decomposition
     the idea is that if A only barely changed then the previous decomposition is still accurate enough
     """
-    if force_computation or (L is None) or (_compute_residual(A, L, upper) > L.previous_residual * (1.0 + tol)):
+    original_residual = L.previous_residual if not L is None else np.nan
+    threshold = original_residual * (1.0 + tol)
+    new_residual = _compute_residual(A, L, upper) if not L is None else np.nan
+    if force_computation or (L is None) or (new_residual > threshold):
         # refresh cholesky decomposition
-        L = psd_safe_cholesky(A, upper=upper).detach() # we drop the gradient for the cholesky decomposition
+        L = psd_safe_cholesky(A, upper=upper)#.detach()
         L.previous_residual = _compute_residual(A, L, upper)
         L.is_recycled = False
     else:
         # recycle cholesky decomposition
+        L = L.detach()
+        L.previous_residual = original_residual
         L.is_recycled = True
     return L
+
+# def recycling_cholesky(A, L=None, tol=10.0, force_computation=False, upper=False):
+#     """
+#     performs the cholesky decomposition only if its MSE is larger than tol time the MSE when we last truly did a cholesky decomposition
+#     the idea is that if A only barely changed then the previous decomposition is still accurate enough
+#     """
+#     assert(tol >= 1.0)
+#     if force_computation or (L is None) or (_compute_residual(A, L, upper) > L.previous_residual * tol):
+#         # refresh cholesky decomposition
+#         L = psd_safe_cholesky(A, upper=upper).detach() # we drop the gradient for the cholesky decomposition
+#         L.previous_residual = _compute_residual(A, L, upper)
+#         L.is_recycled = False
+#     else:
+#         # recycle cholesky decomposition
+#         L.is_recycled = True
+#     return L
