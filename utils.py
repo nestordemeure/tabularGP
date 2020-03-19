@@ -134,7 +134,7 @@ def recycling_cholesky(A, L=None, tol=10.0, force_computation=False, upper=False
     assert tol >= 1.0
     if force_computation or (L is None) or (_compute_residual(A, L, upper) > L.previous_residual * tol):
         # refresh cholesky decomposition
-        L = psd_safe_cholesky(A, upper=upper, out=L).detach() # we drop the gradient for the cholesky decomposition
+        L = psd_safe_cholesky(A, upper=upper).detach() # we drop the gradient for the cholesky decomposition
         L.previous_residual = _compute_residual(A, L, upper)
         L.is_recycled = False
     else:
