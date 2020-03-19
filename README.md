@@ -38,20 +38,13 @@ This is due to the model improving its uncertainty estimate to the detriment of 
 
 ## TODO
 
-#### Various
-
-- add usage example to readme
 - make example folder covering basic usage, feature importance, transfer learning, kernel selection
 - submit to pip
 - add a DOI for ease of quote in papers
 
-#### Kernel
-
 - add a date/time specific kernel (periodic kernel)
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
 
-#### Model
-
-- explore other likelihoods for classification (softmax)
+- explore other loss functions for classification (softmax)
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

@@ -1,10 +1,9 @@
-import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
 
 __all__ = ['psd_safe_cholesky',
-          'soft_clamp_max', 'soft_clamp', 'magnitude', 'magnitude_reciprocal',
+          'soft_clamp_max', 'magnitude', 'magnitude_reciprocal',
           'Scale', 'freeze', 'unfreeze']
 
 #--------------------------------------------------------------------------------------------------
@@ -14,18 +13,13 @@ def soft_clamp_max(x, max_value):
     "clamp_max but differentiable"
     return x - F.softplus(x - max_value)
 
-def soft_clamp(x, min_value, max_value):
-    """insures that the output is in the given interval
-    NOTE: this is not really a clamp"""
-    return min_value + (max_value - min_value)*F.sigmoid(x)
-
 def magnitude(x):
     "similar to log but defined on all numbers and returns the magnitude of the input"
     return torch.sign(x) * torch.log1p(torch.abs(x))
 
 def magnitude_reciprocal(x):
     "reciprocal of magnitude function"
-    return torch.sign(x) * (torch.exp(torch.abs(x)) - 1)
+    return torch.sign(x) * torch.expm1(torch.abs(x))
 
 #--------------------------------------------------------------------------------------------------
 # Modules
