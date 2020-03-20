@@ -7,7 +7,7 @@ import torch
 from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 # my imports
-from loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood
+from loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood, gp_metric_wrapper
 from utils import psd_safe_cholesky, freeze, unfreeze
 from kernel import ProductOfSumsKernel, TabularKernel
 from trainset_selection import select_trainset
@@ -73,9 +73,9 @@ class TabularGPModel(nn.Module):
         std_scale = self.std_scale.abs()
         covar = (diag_cov_test_test - torch.sum(L_test**2, dim=0)).abs().unsqueeze(dim=1) # abs against negative variance
         stdev = torch.sqrt(covar + var_noise) * std_scale + 1e-10 # epsilon to insure we are strictly above 0
-        # adds std as an additional member to the mean
-        mean.stdev = stdev
-        return mean
+        # builds a tensor with the mean and std information stored in the last dimenssion
+        prediction = torch.stack([mean, stdev], dim=-1)
+        return prediction
 
     @property
     def feature_importance(self):
@@ -86,6 +86,11 @@ class TabularGPModel(nn.Module):
 
 class TabularGPLearner(Learner):
     "Learner with some TabularGPModel specific methods"
+    def __init__(self, data, model, metrics=None, **kwargs):
+        # wrapper to make output type compatible with classical metrics
+        wrapped_metrics = gp_metric_wrapper(metrics)
+        super().__init__(data, model, metrics=wrapped_metrics, **kwargs)
+
     @property
     def feature_importance(self):
         "gets the feature importance for the model as a dataframe"
@@ -137,7 +142,7 @@ class TabularGPLearner(Learner):
 
 def tabularGP_learner(data:DataBunch, nb_training_points:int=4000, use_random_training_points=False,
                      fit_training_inputs=False, fit_training_outputs=False, prior=ConstantPrior,
-                     noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
+                     noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, metrics=None, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
     # also decides whethere training the outputs would give the best results
@@ -158,4 +163,4 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=4000, use_random_tr
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
                            fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
                            prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
-    return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
+    return TabularGPLearner(data, model, loss_func=loss_func, metrics=metrics, **learn_kwargs)

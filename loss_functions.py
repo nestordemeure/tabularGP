@@ -5,8 +5,18 @@
 import numpy as np
 import torch
 from torch import Tensor
+from fastai.core import listify
 
-__all__ = ['log_standard_normal_cdf', 'gp_gaussian_marginal_log_likelihood', 'gp_is_greater_log_likelihood']
+__all__ = ['log_standard_normal_cdf', 'gp_gaussian_marginal_log_likelihood',
+           'gp_is_greater_log_likelihood', 'gp_softmax', 'gp_metric_wrapper']
+
+def gp_metric_wrapper(metrics):
+    "takes the metrics and wrap them to strip the inputs of their std dimension"
+    def wrap_metric(metric):
+        def wrapped_metric(prediction, target): return metric(prediction[...,0], target)
+        wrapped_metric.__name__ = metric.__name__
+        return wrapped_metric
+    return list(map(wrap_metric, listify(metrics)))
 
 def log_standard_normal_cdf(x):
     """
@@ -28,8 +38,8 @@ def log_standard_normal_cdf(x):
 def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor, reduction='mean'):
     "loss function for a regression gaussian process"
     if target.dim() == 1: target = target.unsqueeze(-1)
-    mean = prediction
-    stdev = prediction.stdev
+    mean = prediction[..., 0]
+    stdev = prediction[..., 1]
     minus_log_likelihood = (mean - target)**2 / (2*stdev*stdev) + torch.log(stdev * np.sqrt(2.*np.pi))
     if reduction == 'mean': return minus_log_likelihood.mean()
     elif reduction == 'sum': return minus_log_likelihood.sum()
@@ -45,8 +55,8 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
     for more information, see: https://math.stackexchange.com/questions/178334/the-probability-of-one-gaussian-larger-than-another
     """
     # gets the output distributions
-    mean = prediction
-    stdev = prediction.stdev
+    mean = prediction[..., 0]
+    stdev = prediction[..., 1]
     # gets the target
     mean_target = mean[target]
     std_target = stdev[target]
@@ -60,3 +70,24 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
     if reduction == 'mean': return minus_log_proba.mean()
     elif reduction == 'sum': return minus_log_proba.sum()
     else: return minus_log_proba
+
+def gp_softmax(prediction):
+    "takes raw logits, with an additional stdev field, and produces the probability that each class has a larger score than the others"
+    standard_normal_cdf = torch.distributions.Normal(Tensor([0.0]).to(prediction.device), Tensor([1.0]).to(prediction.device)).cdf
+    # gets the output distributions
+    mean = prediction[..., 0]
+    stdev = prediction[..., 1]
+    # we want to compute the substract between all pairs of mean and std
+    if prediction.dim() < 3:
+        mean.unsqueeze_(0)
+        stdev.unsqueeze_(0)
+    mean_target = mean.unsqueeze(-1).expand(-1, -1, mean.size(-1))
+    mean = mean.unsqueeze(-2).expand(-1, mean.size(-1), -1)
+    std_target = stdev.unsqueeze(-1).expand(-1, -1, stdev.size(-1))
+    stdev = stdev.unsqueeze(-2).expand(-1, stdev.size(-1), -1)
+    # computes the probability that each class is larger than the others
+    mean_sub = mean_target - mean
+    std_sub = torch.sqrt(std_target*std_target + stdev*stdev + 2.0*std_target*stdev)
+    proba = standard_normal_cdf(mean_sub / std_sub)
+    # time 2 to compense the 0.5 probability of a class being greater than itself
+    return torch.prod(proba, dim=-1) * 2.0
