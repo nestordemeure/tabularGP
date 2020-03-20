@@ -1,6 +1,6 @@
 # Tabular GP
 
-The aim of this repository is to make it easy to use gaussian process on tabular data with an implementation built on top of [pytorch](https://pytorch.org/) and the [fastai V1 framework](https://docs.fast.ai/).
+The aim of this repository is to make it easy to use gaussian process on tabular data, as a drop-in replacement for neural networks, with an implementation built on top of [pytorch](https://pytorch.org/) and the [fastai V1 framework](https://docs.fast.ai/).
 
 Gaussian process have three main properties that makes them of particular interest:
 - they are very accurate, and tend to outperform deep neural network, on small datasets (5000 points or less)
@@ -18,11 +18,11 @@ Our API was built to be compatible with [fastai V1's tabular models](https://doc
 learn = tabularGP_learner(data, nb_training_points=50, metrics=accuracy)
 learn.fit_one_cycle(10, max_lr=1e-3)
 
-# display the feature importance
-glearn.plot_feature_importance()
+# display the importance of each feature
+learn.plot_feature_importance()
 ```
 
-For a tour of the features available (including various forms of transfer-learning and feature importance estimation), see the [example folder](TODO).
+We recommand browsing the [example folder](TODO) to become familiar with the features available (including various forms of transfer-learning and feature importance estimation) before using the librarie.
 
 ## Notes
 
@@ -38,9 +38,9 @@ This is due to the model improving its uncertainty estimate to the detriment of 
 
 ## TODO
 
-- make example folder covering basic usage, feature importance, transfer learning, kernel selection
 - submit to pip
 - add a DOI for ease of quote in papers
+- converts to fastai V2 when it gets out of alpha
 
 - add a date/time specific kernel (periodic kernel)
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
