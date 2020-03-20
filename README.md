@@ -22,7 +22,7 @@ learn.fit_one_cycle(10, max_lr=1e-3)
 learn.plot_feature_importance()
 ```
 
-We recommand browsing the [example folder](TODO) to become familiar with the features available (including various forms of transfer-learning and feature importance estimation) before using the librarie.
+We recommand browsing the [example folder](https://github.com/nestordemeure/tabularGP/tree/master/examples) to become familiar with the features available (including various forms of transfer-learning and feature importance estimation) before using the librarie.
 
 ## Notes
 
