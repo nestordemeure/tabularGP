@@ -142,7 +142,7 @@ class TabularGPLearner(Learner):
 
 def tabularGP_learner(data:DataBunch, nb_training_points:int=4000, use_random_training_points=False,
                      fit_training_inputs=False, fit_training_outputs=False, prior=ConstantPrior,
-                     noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, metrics=None, **learn_kwargs):
+                     noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
     # also decides whethere training the outputs would give the best results
@@ -163,4 +163,4 @@ def tabularGP_learner(data:DataBunch, nb_training_points:int=4000, use_random_tr
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
                            fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
                            prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
-    return TabularGPLearner(data, model, loss_func=loss_func, metrics=metrics, **learn_kwargs)
+    return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
