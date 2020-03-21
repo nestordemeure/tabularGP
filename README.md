@@ -1,4 +1,4 @@
-# Tabular GP
+# Tabular GP [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3723068.svg)](https://doi.org/10.5281/zenodo.3723068)
 
 The aim of this repository is to make it easy to use gaussian process on tabular data, as a drop-in replacement for neural networks, with an implementation built on top of [pytorch](https://pytorch.org/) and the [fastai V1 framework](https://docs.fast.ai/).
 
@@ -44,12 +44,27 @@ This is due to the model improving its uncertainty estimate to the detriment of 
 
 ## TODO
 
-- add a DOI for ease of quote in papers
 - converts to fastai V2 when it gets out of alpha
 
 - add a date/time specific kernel (periodic kernel)
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
 
 - explore other loss functions for classification (softmax)
+
+## Citation
+
+If you use tabularGP in a scientific publication, you can cite the following reference:
+
+```
+@software{nestor_demeure_2020_3723068,
+  author       = {Nestor Demeure},
+  title        = {tabularGP},
+  month        = mar,
+  year         = 2020,
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.3723068},
+  url          = {https://doi.org/10.5281/zenodo.3723068}
+}
+```
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*
