@@ -9,7 +9,7 @@ setup(
   author = 'NestorDemeure',
 #  author_email = 'your.email@domain.com',
   url = 'https://github.com/nestordemeure/tabularGP',
-  download_url = 'https://github.com/nestordemeure/tabularGP/archive/v_1.tar.gz',
+  download_url = 'https://github.com/nestordemeure/tabularGP/archive/v1.0.tar.gz',
   keywords = ['gaussian-processes', 'tabular-data', 'deep-learning', 'pytorch', 'fastai'],
   install_requires=[
           'numpy',
