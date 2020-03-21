@@ -165,8 +165,8 @@ class IndexKernel(CategorialKernel):
 
 class HammingKernel(CategorialKernel):
     "trivial kernel on categories"
-    def __init__(self, **args):
-        super().__init__(**args)
+    def __init__(self, embedding_sizes:ListSizes):
+        super().__init__(embedding_sizes)
 
     def forward(self, x, y):
         "1 where x=y, 0 otherwise"

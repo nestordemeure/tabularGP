@@ -20,8 +20,8 @@ __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
 
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
-    def __init__(self, training_data:DataBunch, nb_training_points:int=50, use_random_training_points=False,
-                 fit_training_inputs=True, fit_training_outputs=True, prior=ConstantPrior,
+    def __init__(self, training_data:DataBunch, nb_training_points:int=4000, use_random_training_points=False,
+                 fit_training_inputs=False, fit_training_outputs=False, prior=ConstantPrior,
                  noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **kernel_kwargs):
         """
         'noise' is expressed as a fraction of the output std
@@ -102,7 +102,7 @@ class TabularGPLearner(Learner):
         importances = self.model.feature_importance.detach().cpu()
         return pandas.DataFrame({'Variable': feature_names, 'Importance': importances})
 
-    def plot_feature_importance(self, kind='barh', title="feature importance", figsize=(20,15), legend=False, **plot_kwargs):
+    def plot_feature_importance(self, kind='barh', title="Feature importance", figsize=(20,15), legend=False, **plot_kwargs):
         "produces a bar plot of the feature importance for the features, parameters are forwarded to the pandas plotting function"
         importances = self.feature_importance.sort_values('Importance')
         return importances.plot('Variable', 'Importance', kind=kind, title=title, figsize=figsize, legend=legend, **plot_kwargs)
