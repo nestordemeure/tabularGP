@@ -7,11 +7,11 @@ import torch
 from torch import nn, Tensor
 from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
 # my imports
-from loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood, gp_metric_wrapper
-from utils import psd_safe_cholesky, freeze, unfreeze
-from kernel import ProductOfSumsKernel, TabularKernel
-from trainset_selection import select_trainset
-from prior import ConstantPrior
+from tabularGP.loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood, gp_metric_wrapper
+from tabularGP.utils import psd_safe_cholesky, freeze, unfreeze
+from tabularGP.kernel import ProductOfSumsKernel, TabularKernel
+from tabularGP.trainset_selection import select_trainset
+from tabularGP.prior import ConstantPrior
 
 __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
 

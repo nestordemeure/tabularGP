@@ -10,8 +10,8 @@ import numpy as np
 from torch import nn
 import torch
 # my imports
-from utils import Scale
-from universalCombinator import PositiveMultiply, PositiveProductOfSum
+from tabularGP.utils import Scale
+from tabularGP.universalCombinator import PositiveMultiply, PositiveProductOfSum
 
 __all__ = ['CategorialKernel', 'ContinuousKernel', 'TabularKernel',
            'IndexKernelSingle', 'IndexKernel', 'HammingKernel',

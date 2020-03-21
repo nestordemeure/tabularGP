@@ -11,6 +11,12 @@ If you are a gaussian process expert, you might be better served by [gpytorch](h
 
 ## Usage
 
+You can install our librarie with:
+
+```
+pip install git+https://github.com/nestordemeure/tabularGP.git
+```
+
 Our API was built to be compatible with [fastai V1's tabular models](https://docs.fast.ai/tabular.html) and should be familiar to fastai's users:
 
 ```python

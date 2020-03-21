@@ -9,7 +9,7 @@ from torch.nn import Linear, Module, Parameter
 import torch.nn.functional as F
 import torch
 # my imports
-from utils import soft_clamp_max, magnitude, magnitude_reciprocal
+from tabularGP.utils import soft_clamp_max, magnitude, magnitude_reciprocal
 
 __all__ = ['PositiveLinear', 'PositiveMultiply', 'Multiply', 'Polynomial', 'PositiveProductOfSum']
 
