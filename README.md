@@ -38,7 +38,6 @@ This is due to the model improving its uncertainty estimate to the detriment of 
 
 ## TODO
 
-- submit to pip
 - add a DOI for ease of quote in papers
 - converts to fastai V2 when it gets out of alpha
 
