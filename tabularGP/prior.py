@@ -5,7 +5,7 @@
 
 import abc
 # library imports
-from fastai.tabular import ListSizes, TabularModel, embedding
+from fastai.layers import Embedding
 from torch import nn, Tensor
 import torch
 
@@ -16,7 +16,7 @@ __all__ = ['ZeroPrior', 'ConstantPrior', 'LinearPrior']
 
 class Prior(nn.Module):
     "Abstract class for priors."
-    def __init__(self, train_input_cat:Tensor, train_input_cont:Tensor, train_outputs:Tensor, embedding_sizes:ListSizes):
+    def __init__(self, train_input_cat:Tensor, train_input_cont:Tensor, train_outputs:Tensor, embedding_sizes):
         "Note that a pretrained prior does not need to implement this exact same constructor as only the forward will be called."
         super().__init__()
 
@@ -29,7 +29,7 @@ class Prior(nn.Module):
 
 class ZeroPrior(Prior):
     "Prior that ignores its inputs and returns zero"
-    def __init__(self, train_input_cat:Tensor, train_input_cont:Tensor, train_outputs:Tensor, embedding_sizes:ListSizes):
+    def __init__(self, train_input_cat:Tensor, train_input_cont:Tensor, train_outputs:Tensor, embedding_sizes):
         super().__init__(train_input_cat, train_input_cont, train_outputs, embedding_sizes)
         nb_outputs = train_outputs.size(-1)
         self.register_buffer('output', torch.zeros(nb_outputs))
@@ -39,7 +39,7 @@ class ZeroPrior(Prior):
 
 class ConstantPrior(Prior):
     "Prior that ignores its inputs and returns a constant"
-    def __init__(self, train_input_cat:Tensor, train_input_cont:Tensor, train_outputs:Tensor, embedding_sizes:ListSizes):
+    def __init__(self, train_input_cat:Tensor, train_input_cont:Tensor, train_outputs:Tensor, embedding_sizes):
         super().__init__(train_input_cat, train_input_cont, train_outputs, embedding_sizes)
         self.output = nn.Parameter(train_outputs.mean(dim=0))
 
@@ -48,9 +48,9 @@ class ConstantPrior(Prior):
 
 class LinearPrior(Prior):
     "Prior that fits a linear model on the inputs"
-    def __init__(self, train_input_cat:Tensor, train_input_cont:Tensor, train_outputs:Tensor, embedding_sizes:ListSizes):
+    def __init__(self, train_input_cat:Tensor, train_input_cont:Tensor, train_outputs:Tensor, embedding_sizes):
         super().__init__(train_input_cat, train_input_cont, train_outputs, embedding_sizes)
-        self.embeddings = nn.ModuleList([embedding(ni, nf) for ni,nf in embedding_sizes])
+        self.embeddings = nn.ModuleList([Embedding(ni, nf) for ni,nf in embedding_sizes])
         self.nb_embeddings = sum(e.embedding_dim for e in self.embeddings)
         self.nb_cont = train_input_cont.size(-1)
         nb_outputs = train_outputs.size(-1)

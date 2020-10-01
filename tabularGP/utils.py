@@ -1,10 +1,27 @@
+import collections
 import torch
 from torch import nn
 import torch.nn.functional as F
 
 __all__ = ['psd_safe_cholesky',
           'soft_clamp_max', 'magnitude', 'magnitude_reciprocal',
-          'Scale', 'freeze', 'unfreeze']
+          'Scale', 'freeze', 'unfreeze',
+          'listify']
+
+#--------------------------------------------------------------------------------------------------
+# Python
+
+def _is_array(x): 
+    "test wether x is an array like object"
+    return hasattr(x,'__array__') or hasattr(x,'iloc')
+
+def listify(o):
+    "turn arbitrary input into a list, inherited from fastai V1"
+    if o is None: return []
+    if isinstance(o, list): return o
+    if isinstance(o, str) or _is_array(o): return [o]
+    if isinstance(o, collections.Iterable): return list(o)
+    return [o]
 
 #--------------------------------------------------------------------------------------------------
 # Mathematical functions

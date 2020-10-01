@@ -4,7 +4,6 @@
 
 from torch import Tensor, nn
 import torch
-from fastai.tabular import DataBunch
 
 __all__ = ['trainset_of_databunch', 'select_trainset', 'get_worst_element']
 
@@ -53,7 +52,7 @@ def _maximalyDifferentPoints(data_cont:Tensor, data_cat:Tensor, nb_cluster:int):
         minimum_distances_cat = torch.min(minimum_distances_cat, distances_cat)
     return torch.LongTensor(indexes)
 
-def trainset_of_databunch(data:DataBunch):
+def trainset_of_databunch(data):
     "takes a databunch and returns a (cat,cont,y) tuple"
     # extracts all the dataset as a single tensor
     data_cat = []
@@ -74,7 +73,7 @@ def trainset_of_databunch(data:DataBunch):
     if is_classification: data_y = nn.functional.one_hot(data_y).float()
     return (data_cat, data_cont, data_y)
 
-def select_trainset(data:DataBunch, nb_points:int, use_random_training_points=False):
+def select_trainset(data, nb_points:int, use_random_training_points=False):
     "gets a (cat,cont,y) tuple with the given number of elements"
     # extracts all the dataset as tensors
     (data_cat, data_cont, data_y) = trainset_of_databunch(data)

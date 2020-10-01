@@ -5,7 +5,7 @@
 import pandas
 import torch
 from torch import nn, Tensor
-from fastai.tabular import DataBunch, ListSizes, ifnone, Learner
+from fastai.tabular.all import ifnone, Learner
 # my imports
 from tabularGP.loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood, gp_metric_wrapper
 from tabularGP.utils import psd_safe_cholesky, freeze, unfreeze
@@ -20,9 +20,9 @@ __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
 
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
-    def __init__(self, training_data:DataBunch, nb_training_points:int=4000, use_random_training_points=False,
+    def __init__(self, training_data, nb_training_points:int=4000, use_random_training_points=False,
                  fit_training_inputs=False, fit_training_outputs=False, prior=ConstantPrior,
-                 noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **kernel_kwargs):
+                 noise=1e-2, embedding_sizes=None, kernel=ProductOfSumsKernel, **kernel_kwargs):
         """
         'noise' is expressed as a fraction of the output std
         We recommend setting 'fit_training_outputs' to True for regression and False for classification
@@ -120,7 +120,7 @@ class TabularGPLearner(Learner):
         if covar_scaling or allnone:
             freeze(self.model.std_scale)
             freeze(self.model.std_noise)
-        self.create_opt(1e-3)
+        self.create_opt()
 
     def unfreeze(self, kernel=None, data=None, prior=None, covar_scaling=None)->None:
         "freeze all the value (if they are all none) or only the one set to true"
@@ -135,14 +135,14 @@ class TabularGPLearner(Learner):
         if covar_scaling or allnone:
             unfreeze(self.model.std_scale)
             unfreeze(self.model.std_noise)
-        self.create_opt(1e-3)
+        self.create_opt()
 
 #--------------------------------------------------------------------------------------------------
 # Constructor
 
-def tabularGP_learner(data:DataBunch, nb_training_points:int=4000, use_random_training_points=False,
+def tabularGP_learner(data, nb_training_points:int=4000, use_random_training_points=False,
                      fit_training_inputs=False, fit_training_outputs=False, prior=ConstantPrior,
-                     noise=1e-2, embedding_sizes:ListSizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
+                     noise=1e-2, embedding_sizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
     # also decides whethere training the outputs would give the best results

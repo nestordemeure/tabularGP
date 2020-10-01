@@ -5,7 +5,7 @@
 import numpy as np
 import torch
 from torch import Tensor
-from fastai.core import listify
+from tabularGP.utils import listify
 
 __all__ = ['log_standard_normal_cdf', 'gp_gaussian_marginal_log_likelihood',
            'gp_is_greater_log_likelihood', 'gp_softmax', 'gp_metric_wrapper']
