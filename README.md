@@ -1,6 +1,6 @@
 # Tabular GP [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3723068.svg)](https://doi.org/10.5281/zenodo.3723068)
 
-The aim of this repository is to make it easy to use gaussian process on tabular data, as a drop-in replacement for neural networks, with an implementation built on top of [pytorch](https://pytorch.org/) and the [fastai V1 framework](https://docs.fast.ai/).
+The aim of this repository is to make it easy to use gaussian process on tabular data, as a drop-in replacement for neural networks, with an implementation built on top of [pytorch](https://pytorch.org/) and the [fastai framework](https://docs.fast.ai/).
 
 Gaussian process have three main properties that makes them of particular interest:
 - they are very accurate, and tend to outperform deep neural network, on small datasets (5000 points or less)
@@ -17,7 +17,7 @@ You can install our librarie with:
 pip install git+https://github.com/nestordemeure/tabularGP.git
 ```
 
-Our API was built to be compatible with [fastai V1's tabular models](https://docs.fast.ai/tabular.html) and should be familiar to fastai's users:
+Our API was built to be compatible with [fastai's tabular models](https://docs.fast.ai/tabular.core) and should be familiar to fastai's users:
 
 ```python
 # train a learner on a classification task using a subset of 50 points
@@ -43,8 +43,6 @@ One might observe that a validation metric increases while the loss steadily dec
 This is due to the model improving its uncertainty estimate to the detriment of its prediction.
 
 ## TODO
-
-- converts to fastai V2 when it gets out of alpha
 
 - add a date/time specific kernel (periodic kernel)
 - add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
