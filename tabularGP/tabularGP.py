@@ -5,7 +5,7 @@
 import pandas
 import torch
 from torch import nn, Tensor
-from fastai.tabular.all import ifnone, Learner
+from fastai.tabular.all import ifnone, Learner, get_emb_sz
 # my imports
 from tabularGP.loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood, gp_metric_wrapper
 from tabularGP.utils import psd_safe_cholesky, freeze, unfreeze
@@ -40,7 +40,8 @@ class TabularGPModel(nn.Module):
         output_std = train_outputs.std(dim=0)
         self.std_scale = nn.Parameter(output_std)
         self.std_noise = nn.Parameter(output_std * noise)
-        embedding_sizes = training_data.get_emb_szs(ifnone(embedding_sizes, {}))
+        # TODO find function to get embeddings sizes for data
+        embedding_sizes = get_emb_sz(training_data.train_ds, {} if embedding_sizes is None else embedding_sizes)
         self.kernel = kernel(train_input_cat, train_input_cont, embedding_sizes, **kernel_kwargs) if isinstance(kernel,type) else kernel
         self.prior = prior(train_input_cat, train_input_cont, train_outputs, embedding_sizes) if isinstance(prior,type) else prior
         # precomputed cholesky decomposition
@@ -95,8 +96,8 @@ class TabularGPLearner(Learner):
     def feature_importance(self):
         "gets the feature importance for the model as a dataframe"
         # gets feature names
-        cont_names = self.data.train_ds.x.cont_names
-        cat_names = self.data.train_ds.x.cat_names
+        cont_names = self.data.cont_names
+        cat_names = self.data.cat_names
         feature_names = cat_names + cont_names
         # gets importance
         importances = self.model.feature_importance.detach().cpu()
@@ -146,7 +147,7 @@ def tabularGP_learner(data, nb_training_points:int=4000, use_random_training_poi
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
     # also decides whethere training the outputs would give the best results
-    is_classification = hasattr(data, 'classes')
+    is_classification = data.c > 1
     if is_classification: loss_func = gp_is_greater_log_likelihood
     else: loss_func = gp_gaussian_marginal_log_likelihood
     # kernel

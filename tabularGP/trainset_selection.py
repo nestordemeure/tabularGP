@@ -4,6 +4,7 @@
 
 from torch import Tensor, nn
 import torch
+from fastai.torch_basics import * # for pytorch to tensor conversion
 
 __all__ = ['trainset_of_databunch', 'select_trainset', 'get_worst_element']
 
@@ -54,23 +55,17 @@ def _maximalyDifferentPoints(data_cont:Tensor, data_cat:Tensor, nb_cluster:int):
 
 def trainset_of_databunch(data):
     "takes a databunch and returns a (cat,cont,y) tuple"
-    # extracts all the dataset as a single tensor
-    data_cat = []
-    data_cont = []
-    data_y = []
-    for x,y in iter(data.train_dl):
-        xcat = x[0]
-        xcont = x[1]
-        data_cat.append(xcat)
-        data_cont.append(xcont)
-        data_y.append(y)
-    # concat the batches
-    data_cat = torch.cat(data_cat)
-    data_cont = torch.cat(data_cont)
-    data_y = torch.cat(data_y)
+    # extracts all the dataset as tensors
+    # TODO convert the folowing dataframes into tensors
+    data_cat = tensor(data.cats).long()
+    data_cont = tensor(data.conts).float()
     # transforms the output into one hot encoding if we are dealing with a classification problem
-    is_classification = hasattr(data, 'classes')
-    if is_classification: data_y = nn.functional.one_hot(data_y).float()
+    is_classification = data.c > 1
+    if is_classification:
+        data_y = tensor(data.ys).long()
+        data_y = nn.functional.one_hot(data_y).float()
+    else:
+        data_y = tensor(data.ys).float()
     return (data_cat, data_cont, data_y)
 
 def select_trainset(data, nb_points:int, use_random_training_points=False):

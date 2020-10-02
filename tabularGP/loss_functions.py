@@ -14,7 +14,8 @@ def gp_metric_wrapper(metrics):
     "takes the metrics and wrap them to strip the inputs of their std dimension"
     def wrap_metric(metric):
         def wrapped_metric(prediction, target): return metric(prediction[...,0], target)
-        wrapped_metric.__name__ = metric.__name__
+        # TODO do we still need a way to preserve the name ?
+        #wrapped_metric.__name__ = metric.__name__
         return wrapped_metric
     return list(map(wrap_metric, listify(metrics)))
 
