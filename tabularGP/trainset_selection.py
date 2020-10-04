@@ -60,9 +60,9 @@ def trainset_of_databunch(data):
     data_cat = tensor(data.cats).long()
     data_cont = tensor(data.conts).float()
     # transforms the output into one hot encoding if we are dealing with a classification problem
-    is_classification = data.c > 1
+    is_classification = (data.c > 1) and (len(data.y_names) == 1)
     if is_classification:
-        data_y = tensor(data.ys).long()
+        data_y = tensor(data.ys).squeeze().long()
         data_y = nn.functional.one_hot(data_y).float()
     else:
         data_y = tensor(data.ys).float()

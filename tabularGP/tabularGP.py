@@ -147,7 +147,7 @@ def tabularGP_learner(data, nb_training_points:int=4000, use_random_training_poi
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
     # also decides whethere training the outputs would give the best results
-    is_classification = data.c > 1
+    is_classification = (data.c > 1) and (len(data.y_names) == 1)
     if is_classification: loss_func = gp_is_greater_log_likelihood
     else: loss_func = gp_gaussian_marginal_log_likelihood
     # kernel
