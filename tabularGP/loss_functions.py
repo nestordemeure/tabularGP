@@ -65,9 +65,12 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
     # computes the probability that the target is larger than another output
     mean_sub = mean_target - mean
     std_sub = torch.sqrt(std_target*std_target + stdev*stdev + 2.0*std_target*stdev)
+    # TODO check the formula for log_standard_normal_cdf
     minus_log_proba = -log_standard_normal_cdf(mean_sub / std_sub)
     # removes the probability between the target and itself
     minus_log_proba[target] = 0.0
+    # TODO using a sum here is equivalent to doing the product of the proba but they are not independant so its a bit approximativ
+    # TODO we could use the expected best of several gaussian ?
     minus_log_proba = torch.sum(minus_log_proba, dim=1)
     if reduction == 'mean': return minus_log_proba.mean()
     elif reduction == 'sum': return minus_log_proba.sum()

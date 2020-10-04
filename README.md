@@ -42,13 +42,6 @@ We provide two loss functions out of the box (`gp_gaussian_marginal_log_likeliho
 One might observe that a validation metric increases while the loss steadily decreases.
 This is due to the model improving its uncertainty estimate to the detriment of its prediction.
 
-## TODO
-
-- add a date/time specific kernel (periodic kernel)
-- add possibility to pass a list of kernels to the tabular kernels (to have one specific kernel per column)
-
-- explore other loss functions for classification (softmax)
-
 ## Citation
 
 If you use tabularGP in a scientific publication, you can cite the following reference:
