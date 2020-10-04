@@ -21,12 +21,11 @@ __all__ = ['TabularGPModel', 'TabularGPLearner', 'tabularGP_learner']
 class TabularGPModel(nn.Module):
     "Gaussian process based model for tabular data."
     def __init__(self, training_data, nb_training_points:int=4000, use_random_training_points=False,
-                 fit_training_inputs=False, fit_training_outputs=False, fit_cholesky_decomposition=False, prior=ConstantPrior,
+                 fit_training_inputs=False, fit_training_outputs=False, prior=ConstantPrior,
                  noise=1e-2, embedding_sizes=None, kernel=ProductOfSumsKernel, **kernel_kwargs):
         """
         'noise' is expressed as a fraction of the output std
         We recommend setting 'fit_training_outputs' to True for regression and False for classification
-        'fit_cholesky_decomposition' makes the training much faster, as we avoid doing cholesky deocmpositions during training steps, and can be more accurate (but this remains to be tested properly)
         """
         super().__init__()
         # registers training data
@@ -41,50 +40,33 @@ class TabularGPModel(nn.Module):
         output_std = train_outputs.std(dim=0)
         self.std_scale = nn.Parameter(output_std)
         self.std_noise = nn.Parameter(output_std * noise)
-        # TODO find function to get embeddings sizes for data
         embedding_sizes = get_emb_sz(training_data.train_ds, {} if embedding_sizes is None else embedding_sizes)
         self.kernel = kernel(train_input_cat, train_input_cont, embedding_sizes, **kernel_kwargs) if isinstance(kernel,type) else kernel
         self.prior = prior(train_input_cat, train_input_cont, train_outputs, embedding_sizes) if isinstance(prior,type) else prior
-        # precomputed cholesky decomposition
-        self.fit_cholesky_decomposition = fit_cholesky_decomposition
-        L_train_train = self.cholesky_decomposition()
-        if fit_cholesky_decomposition: self._L_train_train = nn.Parameter(L_train_train)
-        else: self.register_buffer('_L_train_train', L_train_train)
-        # storage for memoized output weights
+        # storage for memoized values
         self._output_weights = None
+        self._L_train_train = None
 
-    def cholesky_decomposition(self):
-        "does the cholesky decomposition of the covariance matrix"
-        # covariance between training samples
-        cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
-        # cholesky decompositions (accelerate solving of linear systems)
-        L_train_train = psd_safe_cholesky(cov_train_train)#.detach() # we drop the gradient for the cholesky decomposition
-        return L_train_train
-
-    def memoized_cholesky_decomposition(self):
-        "memoize the cholesky decomposition to avoid recomputing it when we are not training or when we are fitting it"
-        if self.training and not self.fit_cholesky_decomposition:
-            self._L_train_train = self.cholesky_decomposition()
-        return self._L_train_train
-
-    def memoized_output_weights(self, L_train_train):
-        "memoize the output weight computation to avoid recomputing it when we are not training"
-        if (self._output_weights is None) or (self.training):
+    def memoized_cholesky_decomposition(self): 
+        "memoize the cholesky decomposition to avoid recomputing it when we are not training or when we are fitting it" 
+        if (self._L_train_train is None) or (self.training): 
+            # covariance between training samples
+            cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
+            # cholesky decompositions (accelerate solving of linear systems)
+            self._L_train_train = psd_safe_cholesky(cov_train_train).detach() # we drop the gradient for the cholesky decomposition 
             # outputs for the training data with prior correction
             train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
             # weights for the predicted mean
-            self._output_weights, _ = torch.triangular_solve(train_outputs, L_train_train, upper=False)
-        return self._output_weights
+            self._output_weights, _ = torch.triangular_solve(train_outputs, self._L_train_train, upper=False)
+        return self._L_train_train, self._output_weights
 
     def forward(self, x_cat:Tensor, x_cont:Tensor):
         # covariance between combinaisons of samples
         cov_train_test = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (x_cat, x_cont))
         diag_cov_test_test = self.kernel((x_cat, x_cont), (x_cat, x_cont))
         # cholesky decompositions (accelerate solving of linear systems)
-        L_train_train = self.memoized_cholesky_decomposition()
+        L_train_train, output_weights = self.memoized_cholesky_decomposition()
         (L_test, _) = torch.triangular_solve(cov_train_test, L_train_train, upper=False)
-        # weights for the predicted mean
-        output_weights = self.memoized_output_weights(L_train_train)
         # predicted mean
         mean = torch.mm(L_test.t(), output_weights) + self.prior(x_cat, x_cont)
         # predicted std
@@ -160,7 +142,7 @@ class TabularGPLearner(Learner):
 # Constructor
 
 def tabularGP_learner(data, nb_training_points:int=4000, use_random_training_points=False,
-                     fit_training_inputs=False, fit_training_outputs=False, fit_cholesky_decomposition=False, prior=ConstantPrior,
+                     fit_training_inputs=False, fit_training_outputs=False, prior=ConstantPrior,
                      noise=1e-2, embedding_sizes=None, kernel=ProductOfSumsKernel, **learn_kwargs):
     "Builds a `TabularGPModel` model and outputs a `Learner` that encapsulate the model and the associated data"
     # loss function
@@ -180,6 +162,6 @@ def tabularGP_learner(data, nb_training_points:int=4000, use_random_training_poi
         freeze(prior) # freezes prior when doing transfer learning
     # defines the model
     model = TabularGPModel(training_data=data, nb_training_points=nb_training_points, use_random_training_points=use_random_training_points,
-                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs, fit_cholesky_decomposition=fit_cholesky_decomposition,
+                           fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
                            prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
