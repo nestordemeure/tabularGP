@@ -92,21 +92,13 @@ class TabularKernel(nn.Module):
         # cat
         nb_x_cat_elements = x_cat.size(0)
         nb_y_cat_elements = y_cat.size(0)
-        cat_element_size = x_cat.size(1) if x_cat.dim() > 1 else 0
-        if cat_element_size == 0:
-            # deals with the case where the is no cat feature
-            x_cat = x_cat.unsqueeze(-1)
-            y_cat = y_cat.unsqueeze(-1)
+        cat_element_size = x_cat.size(1) if x_cat.dim() > 1 else 0 # deals with the case where the is no cat feature
         x_cat = x_cat.unsqueeze(1).expand(nb_x_cat_elements, nb_y_cat_elements, cat_element_size)
         y_cat = y_cat.unsqueeze(0).expand(nb_x_cat_elements, nb_y_cat_elements, cat_element_size)
         # cont
         nb_x_cont_elements = x_cont.size(0)
         nb_y_cont_elements = y_cont.size(0)
-        cont_element_size = x_cont.size(1) if x_cont.dim() > 1 else 0
-        if cont_element_size == 0:
-            # deals with the case where the is no cont feature
-            x_cont = x_cont.unsqueeze(-1)
-            y_cont = y_cont.unsqueeze(-1)
+        cont_element_size = x_cont.size(1) if x_cont.dim() > 1 else 0 # deals with the case where the is no cont feature
         x_cont = x_cont.unsqueeze(1).expand(nb_x_cont_elements, nb_y_cont_elements, cont_element_size)
         y_cont = y_cont.unsqueeze(0).expand(nb_x_cont_elements, nb_y_cont_elements, cont_element_size)
         # covariance computation
