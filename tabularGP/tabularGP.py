@@ -96,8 +96,8 @@ class TabularGPLearner(Learner):
     def feature_importance(self):
         "gets the feature importance for the model as a dataframe"
         # gets feature names
-        cont_names = self.data.cont_names
-        cat_names = self.data.cat_names
+        cont_names = self.dls.cont_names
+        cat_names = self.dls.cat_names
         feature_names = cat_names + cont_names
         # gets importance
         importances = self.model.feature_importance.detach().cpu()

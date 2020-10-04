@@ -54,7 +54,6 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
      std² = std_x² + std_y² + 2*std_x*std_y
      under the hypothesis that corr(x,y) = -1 meaning that when one grows the other decreases
     for more information, see: https://math.stackexchange.com/questions/178334/the-probability-of-one-gaussian-larger-than-another
-    TODO: we might want to compute the probability that the targer is the largest gaussian of all in line
     """
     # gets the output distributions
     mean = prediction[..., 0]
