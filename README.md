@@ -1,6 +1,6 @@
 # Tabular GP [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3723068.svg)](https://doi.org/10.5281/zenodo.3723068)
 
-The aim of this repository is to make it easy to use gaussian process on tabular data, as a drop-in replacement for neural networks, with an implementation built on top of [pytorch](https://pytorch.org/) and the [fastai framework](https://docs.fast.ai/).
+The aim of this repository is to make it easy to use gaussian process on tabular data, as a drop-in replacement for neural networks, with an implementation built on top of [pytorch](https://pytorch.org/) and the [fastai (V2) framework](https://docs.fast.ai/).
 
 Gaussian process have three main properties that makes them of particular interest:
 - they are very accurate, and tend to outperform deep neural network, on small datasets (5000 points or less)
