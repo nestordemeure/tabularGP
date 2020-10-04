@@ -58,7 +58,7 @@ class TabularGPModel(nn.Module):
         # covariance between training samples
         cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
         # cholesky decompositions (accelerate solving of linear systems)
-        L_train_train = psd_safe_cholesky(cov_train_train).detach() # we drop the gradient for the cholesky decomposition
+        L_train_train = psd_safe_cholesky(cov_train_train)#.detach() # we drop the gradient for the cholesky decomposition
         return L_train_train
 
     def memoized_cholesky_decomposition(self):
