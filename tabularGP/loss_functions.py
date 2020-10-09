@@ -5,9 +5,13 @@
 import numpy as np
 import torch
 from torch import Tensor
+from fastai.tabular.all import CrossEntropyLossFlat
 
 __all__ = ['log_standard_normal_cdf', 'gp_gaussian_marginal_log_likelihood',
            'gp_is_greater_log_likelihood', 'gp_softmax']
+
+#------------------------------------------------------------------------------
+# Regression
 
 def log_standard_normal_cdf(x):
     """
@@ -35,6 +39,9 @@ def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor, reduction='me
     if reduction == 'mean': return minus_log_likelihood.mean()
     elif reduction == 'sum': return minus_log_likelihood.sum()
     else: return minus_log_likelihood
+
+#------------------------------------------------------------------------------
+# Classification
 
 def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
     """
@@ -65,6 +72,13 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
     if reduction == 'mean': return minus_log_proba.mean()
     elif reduction == 'sum': return minus_log_proba.sum()
     else: return minus_log_proba
+
+# same function as the one for the classification loss (CrossEntropyLossFlat) with no axis information
+def decodes_gp_is_greater_log_likelihood(x):
+    return x.argmax(dim=-1)
+
+# use a decode function to turn a tensor back into categories (required for non-regression)
+gp_is_greater_log_likelihood.decodes = decodes_gp_is_greater_log_likelihood
 
 def gp_softmax(prediction):
     "takes raw logits, with an additional stdev field, and produces the probability that each class has a larger score than the others"
