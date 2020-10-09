@@ -47,13 +47,13 @@ class TabularGPModel(nn.Module):
         self._output_weights = None
         self._L_train_train = None
 
-    def memoized_cholesky_decomposition(self): 
-        "memoize the cholesky decomposition to avoid recomputing it when we are not training or when we are fitting it" 
-        if (self._L_train_train is None) or (self.training): 
+    def memoized_cholesky_decomposition(self):
+        "memoize the cholesky decomposition to avoid recomputing it when we are not training or when we are fitting it"
+        if (self._L_train_train is None) or (self.training):
             # covariance between training samples
             cov_train_train = self.kernel.matrix((self.train_input_cat, self.train_input_cont), (self.train_input_cat, self.train_input_cont))
             # cholesky decompositions (accelerate solving of linear systems)
-            self._L_train_train = psd_safe_cholesky(cov_train_train).detach() # we drop the gradient for the cholesky decomposition 
+            self._L_train_train = psd_safe_cholesky(cov_train_train).detach() # we drop the gradient for the cholesky decomposition
             # outputs for the training data with prior correction
             train_outputs = self.train_outputs - self.prior(self.train_input_cat, self.train_input_cont)
             # weights for the predicted mean
@@ -75,6 +75,8 @@ class TabularGPModel(nn.Module):
         covar = (diag_cov_test_test - torch.sum(L_test**2, dim=0)).abs().unsqueeze(dim=1) # abs against negative variance
         stdev = torch.sqrt(covar + var_noise) * std_scale + 1e-10 # epsilon to insure we are strictly above 0
         # puts the std in a member of the mean
+        # to make it accesible from the loss function 
+        # while being able to use fastai predict pipeline which has strong preconceptions on the output tensor shape
         mean.stdev = stdev
         return mean
 
@@ -85,18 +87,10 @@ class TabularGPModel(nn.Module):
 #--------------------------------------------------------------------------------------------------
 # Learner
 
-#@log_args(but_as=Learner.__init__)
-#class TabularLearner(Learner):
-#    def predict(self, row):
-#        dl = self.dls.test_dl(row.to_frame().T)
-#        dl.dataset.conts = dl.dataset.conts.astype(np.float32)
-#        inp,preds,_,dec_preds = self.get_preds(dl=dl, with_input=True, with_decoded=True)
-#        b = (*tuplify(inp),*tuplify(dec_preds))
-#        full_dec = self.dls.decode(b)
-#        return full_dec,dec_preds[0],preds[0]
-
 class TabularGPLearner(TabularLearner):
-    "Learner with some TabularGPModel specific methods"
+    "TabularLearner with TabularGPModel specific methods"
+    # we inherit from TabularGPLearner for its `predict` method
+
     @property
     def feature_importance(self):
         "gets the feature importance for the model as a dataframe"
@@ -170,13 +164,3 @@ def tabularGP_learner(data, nb_training_points:int=4000, use_random_training_poi
                            fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
                            prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
-
-#@log_args(to_return=True, but_as=Learner.__init__)
-#@delegates(Learner.__init__)
-#def tabular_learner(dls, layers=None, emb_szs=None, config=None, n_out=None, y_range=None, **kwargs):
-#    if config is None: config = tabular_config()
-#    model = TabularModel(emb_szs, len(dls.cont_names), n_out, layers, y_range=y_range, **config)
-#    return TabularLearner(dls, model, **kwargs)
-
-# TabularModel ?
-

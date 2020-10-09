@@ -45,7 +45,7 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
      under the hypothesis that corr(x,y) = -1 meaning that when one grows the other decreases
     for more information, see: https://math.stackexchange.com/questions/178334/the-probability-of-one-gaussian-larger-than-another
     """
-    # gets the output distributions
+    # unpacks the output distributions
     mean = prediction
     stdev = prediction.stdev
     # gets the target
@@ -69,7 +69,7 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
 def gp_softmax(prediction):
     "takes raw logits, with an additional stdev field, and produces the probability that each class has a larger score than the others"
     standard_normal_cdf = torch.distributions.Normal(Tensor([0.0]).to(prediction.device), Tensor([1.0]).to(prediction.device)).cdf
-    # gets the output distributions
+    # unpacks the output distributions
     mean = prediction
     stdev = prediction.stdev
     # we want to compute the substract between all pairs of mean and std
