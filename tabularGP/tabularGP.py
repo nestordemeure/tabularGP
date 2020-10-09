@@ -5,7 +5,7 @@
 import pandas
 import torch
 from torch import nn, Tensor
-from fastai.tabular.all import ifnone, Learner, get_emb_sz
+from fastai.tabular.all import Learner, TabularLearner, get_emb_sz
 # my imports
 from tabularGP.loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood, gp_metric_wrapper
 from tabularGP.utils import psd_safe_cholesky, freeze, unfreeze
@@ -85,7 +85,17 @@ class TabularGPModel(nn.Module):
 #--------------------------------------------------------------------------------------------------
 # Learner
 
-class TabularGPLearner(Learner):
+#@log_args(but_as=Learner.__init__)
+#class TabularLearner(Learner):
+#    def predict(self, row):
+#        dl = self.dls.test_dl(row.to_frame().T)
+#        dl.dataset.conts = dl.dataset.conts.astype(np.float32)
+#        inp,preds,_,dec_preds = self.get_preds(dl=dl, with_input=True, with_decoded=True)
+#        b = (*tuplify(inp),*tuplify(dec_preds))
+#        full_dec = self.dls.decode(b)
+#        return full_dec,dec_preds[0],preds[0]
+
+class TabularGPLearner(TabularLearner):
     "Learner with some TabularGPModel specific methods"
     def __init__(self, data, model, metrics=None, **kwargs):
         # wrapper to make output type compatible with classical metrics
