@@ -5,19 +5,13 @@
 import numpy as np
 import torch
 from torch import Tensor
-from tabularGP.utils import listify
+from fastai.tabular.all import CrossEntropyLossFlat
 
 __all__ = ['log_standard_normal_cdf', 'gp_gaussian_marginal_log_likelihood',
-           'gp_is_greater_log_likelihood', 'gp_softmax', 'gp_metric_wrapper']
+           'gp_is_greater_log_likelihood', 'gp_softmax']
 
-def gp_metric_wrapper(metrics):
-    "takes the metrics and wrap them to strip the inputs of their std dimension"
-    def wrap_metric(metric):
-        def wrapped_metric(prediction, target): return metric(prediction[...,0], target)
-        # preserves the name of the metric for display purposes
-        wrapped_metric.__name__ = metric.__name__  if hasattr(metric, '__name__') else metric.name
-        return wrapped_metric
-    return list(map(wrap_metric, listify(metrics)))
+#------------------------------------------------------------------------------
+# Regression
 
 def log_standard_normal_cdf(x):
     """
@@ -39,12 +33,15 @@ def log_standard_normal_cdf(x):
 def gp_gaussian_marginal_log_likelihood(prediction, target:Tensor, reduction='mean'):
     "loss function for a regression gaussian process"
     if target.dim() == 1: target = target.unsqueeze(-1)
-    mean = prediction[..., 0]
-    stdev = prediction[..., 1]
+    mean = prediction
+    stdev = prediction.stdev
     minus_log_likelihood = (mean - target)**2 / (2*stdev*stdev) + torch.log(stdev * np.sqrt(2.*np.pi))
     if reduction == 'mean': return minus_log_likelihood.mean()
     elif reduction == 'sum': return minus_log_likelihood.sum()
     else: return minus_log_likelihood
+
+#------------------------------------------------------------------------------
+# Classification
 
 def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
     """
@@ -55,9 +52,9 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
      under the hypothesis that corr(x,y) = -1 meaning that when one grows the other decreases
     for more information, see: https://math.stackexchange.com/questions/178334/the-probability-of-one-gaussian-larger-than-another
     """
-    # gets the output distributions
-    mean = prediction[..., 0]
-    stdev = prediction[..., 1]
+    # unpacks the output distributions
+    mean = prediction
+    stdev = prediction.stdev
     # gets the target
     target = target.long() # converts from int to a proper index type
     mean_target = mean[target]
@@ -76,12 +73,19 @@ def gp_is_greater_log_likelihood(prediction, target:Tensor, reduction='mean'):
     elif reduction == 'sum': return minus_log_proba.sum()
     else: return minus_log_proba
 
+# same function as the one for the classification loss (CrossEntropyLossFlat) with no axis information
+def decodes_gp_is_greater_log_likelihood(x):
+    return x.argmax(dim=-1)
+
+# use a decode function to turn a tensor back into categories (required for non-regression)
+gp_is_greater_log_likelihood.decodes = decodes_gp_is_greater_log_likelihood
+
 def gp_softmax(prediction):
     "takes raw logits, with an additional stdev field, and produces the probability that each class has a larger score than the others"
     standard_normal_cdf = torch.distributions.Normal(Tensor([0.0]).to(prediction.device), Tensor([1.0]).to(prediction.device)).cdf
-    # gets the output distributions
-    mean = prediction[..., 0]
-    stdev = prediction[..., 1]
+    # unpacks the output distributions
+    mean = prediction
+    stdev = prediction.stdev
     # we want to compute the substract between all pairs of mean and std
     if prediction.dim() < 3:
         mean.unsqueeze_(0)

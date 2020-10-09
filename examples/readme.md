@@ -9,4 +9,4 @@ We cover:
 - **[feature importance](https://github.com/nestordemeure/tabularGP/blob/master/examples/4_feature_importance.ipynb)** determining the features that matter to your model
 - **[advanced usage](https://github.com/nestordemeure/tabularGP/blob/master/examples/5_advanced_usage.ipynb)** details the advanced parameters which can be used to further improve the fit
 
-The examples presupose a familiarity with [fastai V1's tabular model](https://docs.fast.ai/tabular.html) interface as it is the basis for our API.
+The examples presupose a familiarity with [fastai's tabular model](https://docs.fast.ai/tabular.core) interface as it is the basis for our API.

@@ -32,12 +32,15 @@ We recommand browsing the [example folder](https://github.com/nestordemeure/tabu
 
 ## Notes
 
-The gaussian process outputs a mean and a standard deviation (the uncertainty on the prediction) which are stored, respectively, at the index 0 and 1 of the output's last dimension (you can access them with `mean = output[..., 0]` and `stdev = output[...,1`).
+The Gaussian process can produce a standard diviation to model the uncertainty on its output.
+We store this information in a `.stdev` member of the output of out `forward` function in order to use it in the loss functions.
+However, fastai erase this information when calling the `predict` function instead of calling `forward` directly.
 
 Some inputs might lead to crash due to singular matrices appearing during the kernel computation.
 The easiest solution to solve those problems is to restart the model with a lower learning rate (adding training points can also help).
 
-We provide two loss functions out of the box (`gp_gaussian_marginal_log_likelihood` for regression and `gp_is_greater_log_likelihood` for classification). Any user-defined loss function should take both mean and std into account to insure a proper fit.
+We provide two loss functions out of the box (`gp_gaussian_marginal_log_likelihood` for regression and `gp_is_greater_log_likelihood` for classification).
+Any user-defined loss function should take both mean and std into account to insure a proper fit.
 
 One might observe that a validation metric increases while the loss steadily decreases.
 This is due to the model improving its uncertainty estimate to the detriment of its prediction.

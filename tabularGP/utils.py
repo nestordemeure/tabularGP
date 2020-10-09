@@ -11,7 +11,7 @@ __all__ = ['psd_safe_cholesky',
 #--------------------------------------------------------------------------------------------------
 # Python
 
-def _is_array(x): 
+def _is_array(x):
     "test wether x is an array like object"
     return hasattr(x,'__array__') or hasattr(x,'iloc')
 
