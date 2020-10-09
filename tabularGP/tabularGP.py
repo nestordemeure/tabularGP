@@ -5,9 +5,9 @@
 import pandas
 import torch
 from torch import nn, Tensor
-from fastai.tabular.all import ifnone, Learner, get_emb_sz
+from fastai.tabular.all import Learner, TabularLearner, get_emb_sz
 # my imports
-from tabularGP.loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood, gp_metric_wrapper
+from tabularGP.loss_functions import gp_gaussian_marginal_log_likelihood, gp_is_greater_log_likelihood
 from tabularGP.utils import psd_safe_cholesky, freeze, unfreeze
 from tabularGP.kernel import ProductOfSumsKernel, TabularKernel
 from tabularGP.trainset_selection import select_trainset
@@ -74,9 +74,9 @@ class TabularGPModel(nn.Module):
         std_scale = self.std_scale.abs()
         covar = (diag_cov_test_test - torch.sum(L_test**2, dim=0)).abs().unsqueeze(dim=1) # abs against negative variance
         stdev = torch.sqrt(covar + var_noise) * std_scale + 1e-10 # epsilon to insure we are strictly above 0
-        # builds a tensor with the mean and std information stored in the last dimenssion
-        prediction = torch.stack([mean, stdev], dim=-1)
-        return prediction
+        # puts the std in a member of the mean
+        mean.stdev = stdev
+        return mean
 
     @property
     def feature_importance(self):
@@ -85,13 +85,18 @@ class TabularGPModel(nn.Module):
 #--------------------------------------------------------------------------------------------------
 # Learner
 
-class TabularGPLearner(Learner):
-    "Learner with some TabularGPModel specific methods"
-    def __init__(self, data, model, metrics=None, **kwargs):
-        # wrapper to make output type compatible with classical metrics
-        wrapped_metrics = gp_metric_wrapper(metrics)
-        super().__init__(data, model, metrics=wrapped_metrics, **kwargs)
+#@log_args(but_as=Learner.__init__)
+#class TabularLearner(Learner):
+#    def predict(self, row):
+#        dl = self.dls.test_dl(row.to_frame().T)
+#        dl.dataset.conts = dl.dataset.conts.astype(np.float32)
+#        inp,preds,_,dec_preds = self.get_preds(dl=dl, with_input=True, with_decoded=True)
+#        b = (*tuplify(inp),*tuplify(dec_preds))
+#        full_dec = self.dls.decode(b)
+#        return full_dec,dec_preds[0],preds[0]
 
+class TabularGPLearner(TabularLearner):
+    "Learner with some TabularGPModel specific methods"
     @property
     def feature_importance(self):
         "gets the feature importance for the model as a dataframe"
@@ -165,3 +170,13 @@ def tabularGP_learner(data, nb_training_points:int=4000, use_random_training_poi
                            fit_training_inputs=fit_training_inputs, fit_training_outputs=fit_training_outputs,
                            prior=prior, noise=noise, embedding_sizes=embedding_sizes, kernel=kernel)
     return TabularGPLearner(data, model, loss_func=loss_func, **learn_kwargs)
+
+#@log_args(to_return=True, but_as=Learner.__init__)
+#@delegates(Learner.__init__)
+#def tabular_learner(dls, layers=None, emb_szs=None, config=None, n_out=None, y_range=None, **kwargs):
+#    if config is None: config = tabular_config()
+#    model = TabularModel(emb_szs, len(dls.cont_names), n_out, layers, y_range=y_range, **config)
+#    return TabularLearner(dls, model, **kwargs)
+
+# TabularModel ?
+
